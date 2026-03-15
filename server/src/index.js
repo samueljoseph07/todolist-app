@@ -145,7 +145,10 @@ app.get('/api/history', async (req, res) => {
         const logicalDate = getLogicalDate();
         
         const history = await db.query(`
-            SELECT dl.logical_date, t.content, dl.is_completed
+            SELECT 
+                TO_CHAR(dl.logical_date, 'YYYY-MM-DD') as logical_date, 
+                t.content, 
+                dl.is_completed
             FROM daily_logs dl
             JOIN tasks t ON dl.task_id = t.id
             WHERE dl.logical_date < $1 AND dl.logical_date >= $1::date - INTERVAL '30 days'
