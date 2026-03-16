@@ -163,6 +163,34 @@ app.get('/api/history', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+
+// --- DISCORD ALERT ROUTE ---
+app.post('/api/message', async (req, res) => {
+  const { message } = req.body;
+  
+  if (!message || message.trim() === '') {
+    return res.status(400).json({ error: 'Message cannot be empty' });
+  }
+
+  try {
+    // We proxy the request to Discord so the client never sees your webhook URL
+    const response = await fetch(process.env.DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: `🚨 **New Message from App:**\n> ${message}`
+      })
+    });
+
+    if (!response.ok) throw new Error('Failed to reach Discord');
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Webhook Error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
 app.listen(PORT, () => {
     console.log(`Backend securely running on port ${PORT}`);
 });
