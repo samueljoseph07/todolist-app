@@ -102,7 +102,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-ios-bg relative shadow-2xl overflow-hidden">
+    <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto bg-ios-bg relative shadow-2xl overflow-hidden overscroll-none">
       
       <header className="pt-12 pb-4 px-6 bg-ios-bg z-10">
         <h1 className="text-3xl font-bold tracking-tight">
@@ -248,7 +248,7 @@ export default function App() {
         )}
       </main>
 
-      <nav className="absolute bottom-0 w-full bg-ios-card/90 backdrop-blur-md border-t border-gray-200 flex justify-around pb-6 pt-3 px-2 z-20">
+      <nav className="fixed bottom-0 w-full max-w-md bg-ios-card/90 backdrop-blur-md border-t border-gray-200 flex justify-around pb-8 pt-3 px-2 z-50">
         <button 
           onClick={() => { setView('today'); setSelectedHistoryDate(null); }} 
           className={`flex flex-col items-center space-y-1 w-1/2 ${view === 'today' ? 'text-ios-blue' : 'text-ios-gray'}`}

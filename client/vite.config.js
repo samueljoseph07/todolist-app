@@ -11,8 +11,8 @@ export default defineConfig({
         enabled: true // Allows you to test the PWA locally
       },
       manifest: {
-        name: 'Routine Tracker',
-        short_name: 'Routine',
+        name: 'Tasks',
+        short_name: 'Tasks',
         description: 'Daily habit and routine tracker',
         theme_color: '#F2F2F7', // iOS background color
         background_color: '#F2F2F7',
