@@ -116,9 +116,6 @@ export default function App() {
         ) : view === 'today' ? (
           
           <div className="space-y-4">
-            <form onSubmit={addTask} className="relative flex items-center">
-              
-            </form>
 
             <div className="bg-ios-card rounded-xl shadow-sm overflow-hidden">
               {tasks.length === 0 ? (
@@ -247,7 +244,7 @@ export default function App() {
               type="text" 
               value={newTask}
               onChange={(e) => setNewTask(e.target.value)}
-              placeholder="New routine task..."
+              placeholder="New task..."
               className="w-full bg-ios-card rounded-xl py-3 pl-4 pr-12 shadow-sm border border-gray-100 focus:outline-none focus:ring-2 focus:ring-ios-blue transition-all"
             />
             <button type="submit" className="absolute right-3 text-ios-blue disabled:opacity-50" disabled={!newTask.trim()}>
