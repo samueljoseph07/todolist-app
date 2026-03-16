@@ -110,23 +110,14 @@ export default function App() {
         </h1>
       </header>
 
-      <main className="flex-1 px-4 pb-32">
+      <main className="flex-1 px-4 pb-40">
         {loading ? (
           <div className="flex justify-center py-10 text-ios-gray">Loading...</div>
         ) : view === 'today' ? (
           
           <div className="space-y-4">
             <form onSubmit={addTask} className="relative flex items-center">
-              <input 
-                type="text" 
-                value={newTask}
-                onChange={(e) => setNewTask(e.target.value)}
-                placeholder="New routine task..."
-                className="w-full bg-ios-card rounded-xl py-3 pl-4 pr-12 shadow-sm focus:outline-none focus:ring-2 focus:ring-ios-blue transition-all"
-              />
-              <button type="submit" className="absolute right-3 text-ios-blue disabled:opacity-50" disabled={!newTask.trim()}>
-                <Plus size={24} />
-              </button>
+              
             </form>
 
             <div className="bg-ios-card rounded-xl shadow-sm overflow-hidden">
@@ -248,6 +239,25 @@ export default function App() {
         )}
       </main>
 
+      {/* FLOATING ADD TASK INPUT */}
+      {view === 'today' && (
+        <div className="fixed bottom-[88px] w-full max-w-md left-0 right-0 mx-auto px-4 z-40 bg-ios-bg/90 backdrop-blur-md pt-2 pb-2">
+          <form onSubmit={addTask} className="relative flex items-center drop-shadow-lg">
+            <input 
+              type="text" 
+              value={newTask}
+              onChange={(e) => setNewTask(e.target.value)}
+              placeholder="New routine task..."
+              className="w-full bg-ios-card rounded-xl py-3 pl-4 pr-12 shadow-sm border border-gray-100 focus:outline-none focus:ring-2 focus:ring-ios-blue transition-all"
+            />
+            <button type="submit" className="absolute right-3 text-ios-blue disabled:opacity-50" disabled={!newTask.trim()}>
+              <Plus size={24} />
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Your existing <nav> goes here */}
       <nav className="fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 backdrop-blur-md border-t border-gray-200 flex justify-around pb-8 pt-3 px-2 z-50">
         <button 
           onClick={() => { setView('today'); setSelectedHistoryDate(null); }} 
