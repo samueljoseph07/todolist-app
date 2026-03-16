@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://todolist-app-backend-ac32.onrender.com/api';
 
 export default function App() {
   const [view, setView] = useState('today');
