@@ -178,7 +178,7 @@ app.post('/api/message', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        content: `🚨 **New Message from App:**\n> ${message}`
+        content: `${message}`
       })
     });
 

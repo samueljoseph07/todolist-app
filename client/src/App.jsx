@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
+import { MessageCircle, X } from 'lucide-react'; // Added MessageCircle and X
 
 const API_BASE = 'https://todolist-app-backend-ac32.onrender.com/api';
 
@@ -10,6 +11,9 @@ export default function App() {
   const [history, setHistory] = useState({});
   const [newTask, setNewTask] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+  const [supportMessage, setSupportMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
@@ -75,6 +79,30 @@ export default function App() {
     }
   };
 
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!supportMessage.trim()) return;
+
+    setIsSending(true);
+    try {
+      const response = await fetch(`${API_BASE}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: supportMessage })
+      });
+
+      if (response.ok) {
+        setSupportMessage('');
+        setIsMessageModalOpen(false);
+        // Optional: Add a temporary "Sent!" toast notification state here if you want
+      }
+    } catch (error) {
+      console.error('Failed to send message', error);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const toggleTask = async (logId) => {
     setTasks(tasks.map(t => t.log_id === logId ? { ...t, is_completed: !t.is_completed } : t));
     try {
@@ -104,10 +132,15 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-[100dvh] w-full max-w-md mx-auto bg-ios-bg relative shadow-2xl">
       
-      <header className="pt-12 pb-4 px-6 bg-ios-bg z-10">
-        <h1 className="text-3xl font-bold tracking-tight">
+      <header className="pt-12 pb-6 px-6 flex justify-between items-center z-10">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
           {view === 'today' ? 'Today' : 'History'}
         </h1>
+        <button 
+          onClick={() => setIsMessageModalOpen(true)}
+          className="p-2 text-blue-400 hover:text-ios-blue transition-colors">
+          <MessageCircle size={24} />
+        </button>
       </header>
 
       <main className="flex-1 px-4 pb-40">
@@ -271,6 +304,36 @@ export default function App() {
           <span className="text-xs font-medium">History</span>
         </button>
       </nav>
+      {/* MESSAGE MODAL OVERLAY */}
+      {isMessageModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-ios-card w-full max-w-sm rounded-2xl shadow-2xl p-6 relative animate-in fade-in zoom-in duration-200">
+            <button 
+              onClick={() => setIsMessageModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-800"
+            >
+              <X size={20} />
+            </button>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Message Support</h2>
+            <form onSubmit={handleSendMessage}>
+              <textarea
+                value={supportMessage}
+                onChange={(e) => setSupportMessage(e.target.value)}
+                placeholder="What's on your mind?"
+                className="w-full h-32 p-3 bg-ios-bg border border-gray-200 rounded-xl mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-ios-blue text-gray-800"
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={isSending || !supportMessage.trim()}
+                className="w-full bg-ios-blue text-white font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
+              >
+                {isSending ? 'Sending...' : 'Send'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
