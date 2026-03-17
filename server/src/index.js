@@ -163,7 +163,7 @@ app.get('/api/history', async (req, res) => {
                 dl.is_completed
             FROM daily_logs dl
             JOIN tasks t ON dl.task_id = t.id
-            WHERE dl.logical_date <= $1'
+            WHERE dl.logical_date <= $1
             ORDER BY dl.logical_date DESC, t.created_at ASC
         `, [logicalDate]);
 
