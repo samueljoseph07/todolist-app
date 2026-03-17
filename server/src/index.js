@@ -15,8 +15,8 @@ const getLogicalDate = () => {
     const istString = now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
     const istDate = new Date(istString);
     
-    // Subtract 5 hours. If it's 4:30 AM on March 14, this pushes it back to 11:30 PM March 13.
-    istDate.setHours(istDate.getHours() - 5);
+    // Subtract 3 hours. If it's 2:30 AM on March 14, this pushes it back to 11:30 PM March 13.
+    istDate.setHours(istDate.getHours() - 3);
     
     // Format to YYYY-MM-DD for PostgreSQL
     const year = istDate.getFullYear();
@@ -126,17 +126,29 @@ app.patch('/api/logs/:id/toggle', async (req, res) => {
 
 // --- DELETE A TASK (Soft Delete) ---
 app.delete('/api/tasks/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        // Soft delete: set is_active to false. DO NOT physically delete.
-        await db.query('UPDATE tasks SET is_active = false WHERE id = $1', [id]);
-        
-        res.json({ message: 'Task removed from active routine.' });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Server error deleting task' });
-    }
+  const { id } = req.params;
+  
+  // Use the single source of truth for your time-shift math
+  const logicalTodayIST = getLogicalDate();
+
+  try {
+    // 1. Erase today's receipt (Same-Day Forgiveness)
+    await db.query(
+      'DELETE FROM daily_logs WHERE task_id = $1 AND logical_date::date = $2',
+      [id, logicalTodayIST]
+    );
+
+    // 2. Retire the blueprint (Soft Delete)
+    await db.query(
+      'UPDATE tasks SET is_active = FALSE WHERE id = $1', 
+      [id]
+    );
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("Delete error:", err);
+    res.status(500).json({ error: 'Failed to retire task' });
+  }
 });
 
 // --- GET 30-DAY HISTORY ---
@@ -151,7 +163,7 @@ app.get('/api/history', async (req, res) => {
                 dl.is_completed
             FROM daily_logs dl
             JOIN tasks t ON dl.task_id = t.id
-            WHERE dl.logical_date < $1 AND dl.logical_date >= $1::date - INTERVAL '30 days'
+            WHERE dl.logical_date <= $1'
             ORDER BY dl.logical_date DESC, t.created_at ASC
         `, [logicalDate]);
 
