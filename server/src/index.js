@@ -185,20 +185,22 @@ app.post('/api/message', async (req, res) => {
   }
 
   try {
-    // We proxy the request to Discord so the client never sees your webhook URL
     const response = await fetch(process.env.DISCORD_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: `${message}`
-      })
+      body: JSON.stringify({ content: `${message}` })
     });
 
-    if (!response.ok) throw new Error('Failed to reach Discord');
+    if (!response.ok) {
+      // Extract the actual error payload from Discord
+      const errorText = await response.text();
+      console.error(`Discord API Error - Status: ${response.status}, Details: ${errorText}`);
+      throw new Error(`Discord rejected request: Status ${response.status}`);
+    }
 
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Webhook Error:', error);
+    console.error('Webhook Error:', error.message);
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
