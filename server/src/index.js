@@ -1,4 +1,5 @@
 require('dotenv').config();
+const nodemailer = require('nodemailer');
 const express = require('express');
 const cors = require('cors');
 const db = require('./db');
@@ -176,7 +177,7 @@ app.get('/api/history', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-// --- DISCORD ALERT ROUTE ---
+// --- REDUNDANT ALERT ROUTE (Telegram -> Email Fallback) ---
 app.post('/api/message', async (req, res) => {
   const { message } = req.body;
   
@@ -185,23 +186,53 @@ app.post('/api/message', async (req, res) => {
   }
 
   try {
-    const response = await fetch(process.env.DISCORD_WEBHOOK_URL, {
+    // PIPELINE 1: Attempt Telegram
+    const telegramResponse = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: `${message}` })
+      body: JSON.stringify({
+        chat_id: process.env.TELEGRAM_CHAT_ID,
+        text: `${message}`
+      })
     });
 
-    if (!response.ok) {
-      // Extract the actual error payload from Discord
-      const errorText = await response.text();
-      console.error(`Discord API Error - Status: ${response.status}, Details: ${errorText}`);
-      throw new Error(`Discord rejected request: Status ${response.status}`);
+    if (!telegramResponse.ok) {
+      const errorText = await telegramResponse.text();
+      throw new Error(`Telegram rejected request: Status ${telegramResponse.status} - ${errorText}`);
     }
 
-    res.status(200).json({ success: true });
-  } catch (error) {
-    console.error('Webhook Error:', error.message);
-    res.status(500).json({ error: 'Failed to send message' });
+    // If we make it here, Telegram succeeded.
+    return res.status(200).json({ success: true, routedVia: 'telegram' });
+
+  } catch (telegramError) {
+    // PIPELINE 1 FAILED. 
+    console.error('Telegram failure detected. Triggering Email Fallback:', telegramError.message);
+
+    try {
+      // PIPELINE 2: Attempt Email
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_APP_PASSWORD
+        }
+      });
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: process.env.EMAIL_USER, // Sending it to yourself
+        subject: '🚨 App Support Message (Fallback System)',
+        text: `The Telegram pipeline failed. Message intercepted via email fallback:\n\n${message}`
+      });
+
+      console.log('Email fallback executed successfully.');
+      return res.status(200).json({ success: true, routedVia: 'email_fallback' });
+
+    } catch (emailError) {
+      // TOTAL CATASTROPHIC FAILURE. Both pipelines are dead.
+      console.error('TOTAL PIPELINE FAILURE. Email fallback also failed:', emailError.message);
+      return res.status(500).json({ error: 'Message delivery failed completely.' });
+    }
   }
 });
 
