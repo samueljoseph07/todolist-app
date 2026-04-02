@@ -34,15 +34,9 @@ const getLogicalDate = () => {
 };
 
 // --- KEEP-ALIVE ENDPOINT ---
-app.get('/api/health', async (req, res) => {
-    try {
-        // Send a microscopic pulse to keep the DB connection warm
-        await db.query('SELECT 1'); 
-        res.status(200).send('Alive and Warm');
-    } catch (error) {
-        console.error('Health check database ping failed:', error.message);
-        res.status(500).send('DB Dead');
-    }
+// Only keeps the Render container awake. No DB ping required for REST.
+app.get('/api/health', (req, res) => {
+    res.status(200).send('OK');
 });
 
 // --- GET TODAY's TASKS (Includes Auto-Generation) ---
