@@ -144,7 +144,7 @@ export default function App() {
           <MessageCircle size={24} />
         </button>
       </header>
-      <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10">At your service.. To load new tasks, click on history and switch back to today on the bottom</p>
+      <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10">You're doing great! Hope you have an amazing day!</p>
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
