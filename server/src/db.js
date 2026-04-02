@@ -11,3 +11,7 @@ const pool = new Pool({
 module.exports = {
   query: (text, params) => pool.query(text, params),
 };
+
+pool.on('error', (err, client) => {
+  console.error('Idle client error. The cloud dropped the connection.', err.message);
+});

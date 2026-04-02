@@ -45,17 +45,11 @@ app.get('/api/today', async (req, res) => {
 
         // 2. If no logs exist for today, generate them from active tasks
         if (checkLogs.rows.length === 0) {
-            const activeTasks = await db.query('SELECT id FROM tasks WHERE is_active = true');
-            
-            if (activeTasks.rows.length > 0) {
-                const insertPromises = activeTasks.rows.map(task => {
-                    return db.query(
-                        'INSERT INTO daily_logs (task_id, logical_date) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-                        [task.id, logicalDate]
-                    );
-                });
-                await Promise.all(insertPromises);
-            }
+            await db.query(`
+                INSERT INTO daily_logs (task_id, logical_date)
+                SELECT id, $1 FROM tasks WHERE is_active = true
+                ON CONFLICT (task_id, logical_date) DO NOTHING
+            `, [logicalDate]);
         }
 
         // 3. Fetch today's generated list to send to the frontend
