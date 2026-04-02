@@ -2,7 +2,13 @@ require('dotenv').config();
 const nodemailer = require('nodemailer');
 const express = require('express');
 const cors = require('cors');
-const db = require('./db');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase REST Client
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+);
 
 const app = express();
 app.use(cors());
@@ -28,8 +34,15 @@ const getLogicalDate = () => {
 };
 
 // --- KEEP-ALIVE ENDPOINT ---
-app.get('/api/health', (req, res) => {
-    res.status(200).send('OK');
+app.get('/api/health', async (req, res) => {
+    try {
+        // Send a microscopic pulse to keep the DB connection warm
+        await db.query('SELECT 1'); 
+        res.status(200).send('Alive and Warm');
+    } catch (error) {
+        console.error('Health check database ping failed:', error.message);
+        res.status(500).send('DB Dead');
+    }
 });
 
 // --- GET TODAY's TASKS (Includes Auto-Generation) ---
@@ -37,33 +50,40 @@ app.get('/api/today', async (req, res) => {
     try {
         const logicalDate = getLogicalDate();
         
-        // 1. Check if logs exist for today
-        const checkLogs = await db.query(
-            'SELECT * FROM daily_logs WHERE logical_date = $1',
-            [logicalDate]
-        );
+        // 1. Trigger the SQL function over HTTP to auto-generate missing logs
+        const { error: rpcError } = await supabase.rpc('generate_daily_logs', { 
+            target_date: logicalDate 
+        });
+        
+        if (rpcError) throw rpcError;
 
-        // 2. If no logs exist for today, generate them from active tasks
-        if (checkLogs.rows.length === 0) {
-            await db.query(`
-                INSERT INTO daily_logs (task_id, logical_date)
-                SELECT id, $1 FROM tasks WHERE is_active = true
-                ON CONFLICT (task_id, logical_date) DO NOTHING
-            `, [logicalDate]);
-        }
+        // 2. Fetch today's generated list using PostgREST inner joins
+        // Notice we removed the broken .order() command from here
+        const { data: todayTasks, error: fetchError } = await supabase
+            .from('daily_logs')
+            .select(`
+                id,
+                is_completed,
+                tasks!inner (id, content, is_active, created_at)
+            `)
+            .eq('logical_date', logicalDate)
+            .eq('tasks.is_active', true);
 
-        // 3. Fetch today's generated list to send to the frontend
-        const todayTasks = await db.query(`
-            SELECT dl.id as log_id, t.id as task_id, t.content, dl.is_completed 
-            FROM daily_logs dl
-            JOIN tasks t ON dl.task_id = t.id
-            WHERE dl.logical_date = $1 AND t.is_active = true
-            ORDER BY t.created_at ASC
-        `, [logicalDate]);
+        if (fetchError) throw fetchError;
 
-        res.json(todayTasks.rows);
+        // 3. THE FIX: Sort it in JavaScript using the original task's creation date, then map it
+        const formattedData = todayTasks
+            .sort((a, b) => new Date(a.tasks.created_at) - new Date(b.tasks.created_at))
+            .map(row => ({
+                log_id: row.id,
+                task_id: row.tasks.id,
+                content: row.tasks.content,
+                is_completed: row.is_completed
+            }));
+
+        res.json(formattedData);
     } catch (err) {
-        console.error(err);
+        console.error("Fetch tasks error:", err);
         res.status(500).json({ error: 'Server error fetching tasks' });
     }
 });
@@ -75,20 +95,26 @@ app.post('/api/tasks', async (req, res) => {
         const logicalDate = getLogicalDate();
 
         // Insert into master list
-        const newTask = await db.query(
-            'INSERT INTO tasks (content) VALUES ($1) RETURNING *',
-            [content]
-        );
+        const { data: newTask, error: taskError } = await supabase
+            .from('tasks')
+            .insert([{ content }])
+            .select()
+            .single();
+            
+        if (taskError) throw taskError;
         
         // Immediately log it for today so it appears in the UI
-        const newLog = await db.query(
-            'INSERT INTO daily_logs (task_id, logical_date) VALUES ($1, $2) RETURNING *',
-            [newTask.rows[0].id, logicalDate]
-        );
+        const { data: newLog, error: logError } = await supabase
+            .from('daily_logs')
+            .insert([{ task_id: newTask.id, logical_date: logicalDate }])
+            .select()
+            .single();
 
-        res.json({ task: newTask.rows[0], log: newLog.rows[0] });
+        if (logError) throw logError;
+
+        res.json({ task: newTask, log: newLog });
     } catch (err) {
-        console.error(err);
+        console.error("Add task error:", err);
         res.status(500).json({ error: 'Server error adding task' });
     }
 });
@@ -99,22 +125,34 @@ app.patch('/api/logs/:id/toggle', async (req, res) => {
         const { id } = req.params;
         const logicalDate = getLogicalDate();
 
-        // Enforce restriction: Can only toggle tasks belonging to the current logical date
-        const toggle = await db.query(`
-            UPDATE daily_logs 
-            SET is_completed = NOT is_completed, 
-                completed_at = CASE WHEN is_completed = false THEN NOW() ELSE NULL END
-            WHERE id = $1 AND logical_date = $2
-            RETURNING *
-        `, [id, logicalDate]);
+        // Enforce restriction: Check if it belongs to current logical date
+        const { data: currentLog, error: fetchError } = await supabase
+            .from('daily_logs')
+            .select('is_completed')
+            .eq('id', id)
+            .eq('logical_date', logicalDate)
+            .single();
 
-        if (toggle.rows.length === 0) {
+        if (fetchError || !currentLog) {
             return res.status(403).json({ error: 'Cannot alter past history or task does not exist.' });
         }
 
-        res.json(toggle.rows[0]);
+        const newStatus = !currentLog.is_completed;
+        const completedAt = newStatus ? new Date().toISOString() : null;
+
+        // Update the status
+        const { data: updatedLog, error: updateError } = await supabase
+            .from('daily_logs')
+            .update({ is_completed: newStatus, completed_at: completedAt })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateError) throw updateError;
+        
+        res.json(updatedLog);
     } catch (err) {
-        console.error(err);
+        console.error("Toggle error:", err);
         res.status(500).json({ error: 'Server error toggling task' });
     }
 });
@@ -128,16 +166,21 @@ app.delete('/api/tasks/:id', async (req, res) => {
 
   try {
     // 1. Erase today's receipt (Same-Day Forgiveness)
-    await db.query(
-      'DELETE FROM daily_logs WHERE task_id = $1 AND logical_date::date = $2',
-      [id, logicalTodayIST]
-    );
+    const { error: deleteError } = await supabase
+        .from('daily_logs')
+        .delete()
+        .eq('task_id', id)
+        .eq('logical_date', logicalTodayIST);
+
+    if (deleteError) throw deleteError;
 
     // 2. Retire the blueprint (Soft Delete)
-    await db.query(
-      'UPDATE tasks SET is_active = FALSE WHERE id = $1', 
-      [id]
-    );
+    const { error: updateError } = await supabase
+        .from('tasks')
+        .update({ is_active: false })
+        .eq('id', id);
+
+    if (updateError) throw updateError;
 
     res.status(200).json({ success: true });
   } catch (err) {
@@ -151,20 +194,37 @@ app.get('/api/history', async (req, res) => {
     try {
         const logicalDate = getLogicalDate();
         
-        const history = await db.query(`
-            SELECT 
-                TO_CHAR(dl.logical_date, 'YYYY-MM-DD') as logical_date, 
-                t.content, 
-                dl.is_completed
-            FROM daily_logs dl
-            JOIN tasks t ON dl.task_id = t.id
-            WHERE dl.logical_date <= $1
-            ORDER BY dl.logical_date DESC, t.created_at ASC
-        `, [logicalDate]);
+        // 1. Fetch the data (we strip out Supabase's broken nested ordering)
+        const { data: historyData, error: fetchError } = await supabase
+            .from('daily_logs')
+            .select(`
+                logical_date,
+                is_completed,
+                tasks!inner (content, created_at)
+            `)
+            .lte('logical_date', logicalDate);
 
-        res.json(history.rows);
+        if (fetchError) throw fetchError;
+
+        // 2. THE FIX: Two-tier JavaScript sorting
+        const formattedHistory = historyData
+            .sort((a, b) => {
+                // Tier 1: Sort by Day (Descending: Newest days first)
+                if (a.logical_date !== b.logical_date) {
+                    return new Date(b.logical_date) - new Date(a.logical_date);
+                }
+                // Tier 2: Sort by Task Creation Time (Ascending: Oldest tasks first)
+                return new Date(a.tasks.created_at) - new Date(b.tasks.created_at);
+            })
+            .map(row => ({
+                logical_date: row.logical_date,
+                content: row.tasks.content,
+                is_completed: row.is_completed
+            }));
+
+        res.json(formattedHistory);
     } catch (err) {
-        console.error(err);
+        console.error("History error:", err);
         res.status(500).json({ error: 'Server error fetching history' });
     }
 });
@@ -231,5 +291,5 @@ app.post('/api/message', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Backend securely running on port ${PORT}`);
+    console.log(`Backend securely running on port ${PORT} over REST API`);
 });

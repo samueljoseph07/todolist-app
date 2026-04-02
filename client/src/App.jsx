@@ -4,6 +4,8 @@ import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eac
 import { MessageCircle, X } from 'lucide-react'; // Added MessageCircle and X
 
 const API_BASE = 'https://todolist-app-backend-ac32.onrender.com/api';
+//local:
+// const API_BASE = 'http://localhost:5000/api';
 
 export default function App() {
   const [view, setView] = useState('today');
@@ -142,7 +144,7 @@ export default function App() {
           <MessageCircle size={24} />
         </button>
       </header>
-      <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10">Thanks for reaching out! Our developers are attending to your responses 24/7.</p>
+      {/* <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10">Thanks for reaching out! Our developers are attending to your responses 24/7.</p> */}
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
