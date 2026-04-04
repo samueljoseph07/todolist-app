@@ -333,7 +333,7 @@ export default function App() {
       {view === 'today' && (
         <div className="fixed bottom-[88px] w-full max-w-md left-0 right-0 mx-auto px-4 z-40 bg-ios-bg/90 backdrop-blur-md pt-2 pb-2">
           <form onSubmit={addTask} className="relative flex items-center drop-shadow-lg">
-            <input 
+            <textarea 
               type="text" 
               inputMode="text"
               value={newTask}

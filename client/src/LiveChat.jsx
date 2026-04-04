@@ -115,14 +115,27 @@ export default function LiveChat({ onClose, pagerFailed }) {
 
     setInputText('');
     
-    // NEW: Force the input to stay focused after clearing the text
-    inputRef.current?.focus();
+    // NEW: After sending a message, reset the input box height and keep focus to prevent Android keyboard issues
+    if (inputRef.current) {
+      inputRef.current.style.height = '44px'; // Shrink the box back down
+      inputRef.current.focus(); // Keep keyboard open
+    }
   };
 
   const handleInputFocus = () => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 300);
+  };
+
+  const handleTextChange = (e) => {
+    setInputText(e.target.value);
+    
+    // Auto-resize logic
+    const textarea = e.target;
+    textarea.style.height = '44px'; // Reset to base height to allow shrinking when deleting text
+    const newHeight = Math.min(textarea.scrollHeight, 120); // Cap the expansion at 120px (~5 lines)
+    textarea.style.height = `${newHeight}px`;
   };
 
   // NEW: DVH used here to handle the Android keyboard resizing the browser
@@ -176,33 +189,36 @@ export default function LiveChat({ onClose, pagerFailed }) {
         <div ref={messagesEndRef} className="shrink-0" />
       </main>
 
+      {/* Input Form */}
       <footer className="bg-ios-card border-t border-gray-200 p-3 pb-safe shrink-0">
-        <form onSubmit={sendMessage} className="flex gap-2">
-          <input
-            type="text"
-            name="chat-message" 
+        {/* Changed to items-end so the Send button stays at the bottom when text area grows */}
+        <form onSubmit={sendMessage} className="flex gap-2 items-end">
+          <textarea
+            name="chat-message"
             inputMode="text"
-            ref={inputRef} // NEW: Bound the ref to the input
+            ref={inputRef}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleTextChange} // Using the new auto-resize handler
             onFocus={handleInputFocus}
             disabled={!isConnected}
             placeholder={isConnected ? "Message..." : "Message..."}
-            /* --- THE ANDROID KEYBOARD OVERRIDES --- */
-            enterKeyHint="send"
+            
+            enterKeyHint="return" // Changes Android keyboard button to a newline arrow
             autoCapitalize="sentences"
             autoCorrect="on"
             spellCheck="true"
-            /* -------------------------------------- */
-            className="flex-1 bg-ios-bg border border-gray-200 rounded-full px-4 py-2 text-[15px] focus:outline-none focus:border-ios-blue transition-all disabled:opacity-50"
+            
+            rows={1}
+            // Removed whitespace-nowrap and fully-rounded corners. Added overflow-y-auto for massive messages.
+            className="flex-1 bg-ios-bg border border-gray-200 rounded-[20px] px-4 py-2.5 text-[15px] focus:outline-none focus:border-ios-blue transition-all disabled:opacity-50 resize-none overflow-y-auto"
+            style={{ height: '44px' }} // Initial base height
           />
           <button 
             type="submit" 
             disabled={!inputText.trim() || !isConnected}
-            // NEW: These two lines physically block the browser from removing focus from the input when tapped
             onMouseDown={(e) => e.preventDefault()}
             onTouchStart={(e) => e.preventDefault()}
-            className="bg-ios-blue text-white font-medium px-5 py-2 rounded-full disabled:opacity-50"
+            className="bg-ios-blue text-white font-medium px-5 py-2.5 rounded-full disabled:opacity-50 active:scale-95 transition-transform h-[44px] shrink-0"
           >
             Send
           </button>
