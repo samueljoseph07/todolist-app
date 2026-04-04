@@ -335,6 +335,7 @@ export default function App() {
           <form onSubmit={addTask} className="relative flex items-center drop-shadow-lg">
             <input 
               type="text" 
+              inputMode="text"
               value={newTask}
               onChange={(e) => setNewTask(e.target.value)}
               placeholder="New task..."

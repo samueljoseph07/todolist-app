@@ -180,6 +180,8 @@ export default function LiveChat({ onClose, pagerFailed }) {
         <form onSubmit={sendMessage} className="flex gap-2">
           <input
             type="text"
+            name="chat-message" 
+            inputMode="text"
             ref={inputRef} // NEW: Bound the ref to the input
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
