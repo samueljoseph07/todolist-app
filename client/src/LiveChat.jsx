@@ -13,13 +13,32 @@ export default function LiveChat({ onClose }) {
   
   const channelRef = useRef(null);
   const messagesEndRef = useRef(null);
+  
+  // NEW: Ref to maintain keyboard focus
+  const inputRef = useRef(null); 
 
-  // 1. Auto-scroll to newest message
+  // Auto-scroll to newest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 2. The Trojan Horse Error Sequence (Only runs if you aren't connected)
+  // NEW: The Home Button Kill Switch (Page Visibility API)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      // If the app is sent to the background, instantly close the chat
+      if (document.hidden) {
+        onClose(); 
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [onClose]);
+
+  // The Trojan Horse Error Sequence
   useEffect(() => {
     if (isConnected) return; 
     
@@ -27,7 +46,7 @@ export default function LiveChat({ onClose }) {
     
     const timer1 = setTimeout(() => setSystemStatus('Connecting to LLM inference cluster (us-east-1)...'), 4500);
     const timer2 = setTimeout(() => setSystemStatus('Error 429: API Rate limit exceeded. Retrying...'), 8000);
-    const timer3 = setTimeout(() => setSystemStatus('Connection failure: API quota depleted for today.'), 15000);
+    const timer3 = setTimeout(() => setSystemStatus('Connection refused: Free tier API quota depleted for today.'), 15000);
 
     return () => {
       clearTimeout(timer1);
@@ -36,7 +55,7 @@ export default function LiveChat({ onClose }) {
     };
   }, [isConnected]);
 
-  // 3. The Actual Realtime WebSocket Connection
+  // The Realtime WebSocket Connection
   useEffect(() => {
     const channel = supabase.channel('couple_chat', {
       config: { 
@@ -64,19 +83,10 @@ export default function LiveChat({ onClose }) {
 
     channelRef.current = channel;
 
-    // Destroy connection on close
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
-
-  const handleInputFocus = () => {
-    // The Android keyboard takes about 300ms to animate up.
-    // We wait for it to finish, then force the chat to scroll to the newest message.
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 300);
-  };
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -95,12 +105,21 @@ export default function LiveChat({ onClose }) {
     });
 
     setInputText('');
+    
+    // NEW: Force the input to stay focused after clearing the text
+    inputRef.current?.focus();
   };
 
+  const handleInputFocus = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 300);
+  };
+
+  // NEW: DVH used here to handle the Android keyboard resizing the browser
   return (
     <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex flex-col bg-ios-bg font-sans animate-slide-up">
-      {/* Redesigned AI Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-ios-card border-b border-gray-200 shadow-sm">
+      <header className="flex items-center justify-between px-4 py-3 bg-ios-card border-b border-gray-200 shadow-sm shrink-0">
         <div className="flex flex-col gap-0.5">
           <h1 className="text-lg font-semibold text-black leading-tight">AI Chat</h1>
           <div className="flex items-center gap-1.5">
@@ -119,10 +138,12 @@ export default function LiveChat({ onClose }) {
         </button>
       </header>
 
-      {/* Chat Window */}
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+        {/* NEW: The Spring-Loaded Spacer. This forces messages to anchor to the bottom. */}
+        <div className="flex-1 min-h-[1rem]"></div>
+
         {messages.length === 0 ? (
-          <div className="m-auto text-sm text-gray-500 text-center leading-relaxed font-mono px-4">
+          <div className="text-sm text-gray-500 text-center leading-relaxed font-mono px-4 pb-4">
             {isConnected 
               ? "How can I assist you today?" 
               : systemStatus} 
@@ -143,14 +164,14 @@ export default function LiveChat({ onClose }) {
             );
           })
         )}
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} className="shrink-0" />
       </main>
 
-      {/* Input Form */}
-      <footer className="bg-ios-card border-t border-gray-200 p-3 pb-safe">
+      <footer className="bg-ios-card border-t border-gray-200 p-3 pb-safe shrink-0">
         <form onSubmit={sendMessage} className="flex gap-2">
           <input
             type="text"
+            ref={inputRef} // NEW: Bound the ref to the input
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onFocus={handleInputFocus}
@@ -161,6 +182,9 @@ export default function LiveChat({ onClose }) {
           <button 
             type="submit" 
             disabled={!inputText.trim() || !isConnected}
+            // NEW: These two lines physically block the browser from removing focus from the input when tapped
+            onMouseDown={(e) => e.preventDefault()}
+            onTouchStart={(e) => e.preventDefault()}
             className="bg-ios-blue text-white font-medium px-5 py-2 rounded-full disabled:opacity-50"
           >
             Send
