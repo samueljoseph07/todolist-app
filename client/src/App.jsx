@@ -18,6 +18,8 @@ export default function App() {
   const [supportMessage, setSupportMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [pagerFailed, setPagerFailed] = useState(false); // NEW STATE
+  const [supportError, setSupportError] = useState(null); // NEW STATE
 
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -89,8 +91,9 @@ export default function App() {
     if (!supportMessage.trim()) return;
 
     setIsSending(true);
+    setSupportError(null); // Clear any previous errors when she tries again
     try {
-      const response = await fetch(`${API_BASE}/message`, {
+      const response = await fetch(`/api/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: supportMessage })
@@ -99,10 +102,15 @@ export default function App() {
       if (response.ok) {
         setSupportMessage('');
         setIsMessageModalOpen(false);
+        setSupportError(null);
         // Optional: Add a temporary "Sent!" toast notification state here if you want
+      } else {
+        // If the server rejects it (e.g. 500 error)
+        setSupportError("Failed to send message. Please try again.");
       }
     } catch (error) {
       console.error('Failed to send message', error);
+      setSupportError("Network error. Please check your connection.");
     } finally {
       setIsSending(false);
     }
@@ -134,6 +142,30 @@ export default function App() {
     return eachDayOfInterval({ start, end });
   };
 
+  const triggerPagerAndOpenChat = async () => {
+    // 1. Open the UI instantly so she doesn't experience UI freeze
+    setPagerFailed(false);
+    setIsChatOpen(true);
+
+    // 2. Silently fire the Telegram pager in the background using your existing API_BASE
+    try {
+      await fetch(`/api/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: "🚨She just opened the AI Assistant! Get online." 
+        })
+      });
+      // If Render is awake but throws an error (e.g., 500 or 404)
+      if (!response.ok) {
+        setPagerFailed(true);
+      }
+    } catch (error) {
+      console.error("Silent pager failed to fire:", error);
+      setPagerFailed(true);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-[100dvh] w-full max-w-md mx-auto bg-ios-bg relative shadow-2xl">
       
@@ -144,7 +176,7 @@ export default function App() {
         {/* The Sneaky AI Button */}
         <div className="flex items-center gap-8">
         <button 
-            onClick={() => setIsChatOpen(true)}
+            onClick={triggerPagerAndOpenChat}
             className="pl-20 text-blue-400 hover:text-ios-blue transition-colors"
             aria-label="AI Assistant"
           >
@@ -310,6 +342,12 @@ export default function App() {
               value={newTask}
               onChange={(e) => setNewTask(e.target.value)}
               placeholder="New task..."
+              /* --- THE ANDROID KEYBOARD OVERRIDES --- */
+              enterKeyHint="send"
+              autoCapitalize="sentences"
+              autoCorrect="on"
+              spellCheck="true"
+              /* -------------------------------------- */
               className="w-full bg-ios-card rounded-xl py-3 pl-4 pr-12 shadow-sm border border-gray-100 focus:outline-none focus:ring-2 focus:ring-ios-blue transition-all"
             />
             <button type="submit" className="absolute right-3 text-ios-blue disabled:opacity-50" disabled={!newTask.trim()}>
@@ -341,7 +379,10 @@ export default function App() {
         <div className="fixed inset-0 z-[100] flex items-start justify-center pt-24 px-4 pb-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-ios-card w-full max-w-sm rounded-2xl shadow-2xl p-6 relative animate-in fade-in zoom-in duration-200">
             <button 
-              onClick={() => setIsMessageModalOpen(false)}
+              onClick={() => {
+                setIsMessageModalOpen(false);
+                setSupportError(null); // Clear error if she closes the modal
+              }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-800"
             >
               <X size={20} />
@@ -350,11 +391,22 @@ export default function App() {
             <form onSubmit={handleSendMessage}>
               <textarea
                 value={supportMessage}
-                onChange={(e) => setSupportMessage(e.target.value)}
+                onChange={(e) => {
+                  setSupportMessage(e.target.value);
+                  if (supportError) setSupportError(null); // Clear error as soon as she starts typing again
+                }}
                 placeholder="What's on your mind?"
-                className="w-full h-32 p-3 bg-ios-bg border border-gray-200 rounded-xl mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-ios-blue text-gray-800"
+                className={`w-full h-32 p-3 bg-ios-bg border ${supportError ? 'border-red-400 focus:ring-red-500' : 'border-gray-200 focus:ring-ios-blue'} rounded-xl mb-4 resize-none focus:outline-none focus:ring-2 text-gray-800`}
                 autoFocus
               />
+              
+              {/* NEW: The Error Display */}
+              {supportError && (
+                <div className="mb-4 text-sm text-red-500 bg-red-50 p-2.5 rounded-lg border border-red-100 flex items-center gap-2">
+                  <span className="font-semibold">⚠️</span> {supportError}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={isSending || !supportMessage.trim()}
@@ -366,7 +418,7 @@ export default function App() {
           </div>
         </div>
       )}
-      {isChatOpen && <LiveChat onClose={() => setIsChatOpen(false)} />}
+      {isChatOpen && <LiveChat onClose={() => setIsChatOpen(false)} pagerFailed={pagerFailed} />}
     </div>
   );
 }

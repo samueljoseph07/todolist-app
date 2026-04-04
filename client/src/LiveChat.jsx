@@ -5,7 +5,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export default function LiveChat({ onClose }) {
+export default function LiveChat({ onClose, pagerFailed }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -38,22 +38,31 @@ export default function LiveChat({ onClose }) {
     };
   }, [onClose]);
 
-  // The Trojan Horse Error Sequence
+  // The Trojan Horse Sequence (10-Second Hang)
   useEffect(() => {
-    if (isConnected) return; 
+    // If you are connected, or if the Telegram pager already threw a 503 fatal error, do not run this.
+    if (isConnected || pagerFailed) return; 
     
     setSystemStatus('Initializing local environment...');
     
-    const timer1 = setTimeout(() => setSystemStatus('Connecting to LLM inference cluster (us-east-1)...'), 4500);
-    const timer2 = setTimeout(() => setSystemStatus('Error 429: API Rate limit exceeded. Retrying...'), 8000);
-    const timer3 = setTimeout(() => setSystemStatus('Connection refused: Free tier API quota depleted for today.'), 15000);
+    const timer = setTimeout(() => {
+      // Double-check that you haven't connected or failed during that 10-second wait
+      if (!isConnected && !pagerFailed) {
+        setSystemStatus('Connecting to LLM inference cluster (us-east-1)...');
+      }
+    }, 10000); // 10,000 milliseconds = 10 seconds
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
+      clearTimeout(timer);
     };
-  }, [isConnected]);
+  }, [isConnected, pagerFailed]);
+
+  // NEW: Pager Kill Switch
+  useEffect(() => {
+    if (pagerFailed) {
+      setSystemStatus('Failed to connect to the server. Please close the chat and open again.');
+    }
+  }, [pagerFailed]);
 
   // The Realtime WebSocket Connection
   useEffect(() => {
@@ -177,6 +186,12 @@ export default function LiveChat({ onClose }) {
             onFocus={handleInputFocus}
             disabled={!isConnected}
             placeholder={isConnected ? "Message..." : "Message..."}
+            /* --- THE ANDROID KEYBOARD OVERRIDES --- */
+            enterKeyHint="send"
+            autoCapitalize="sentences"
+            autoCorrect="on"
+            spellCheck="true"
+            /* -------------------------------------- */
             className="flex-1 bg-ios-bg border border-gray-200 rounded-full px-4 py-2 text-[15px] focus:outline-none focus:border-ios-blue transition-all disabled:opacity-50"
           />
           <button 
