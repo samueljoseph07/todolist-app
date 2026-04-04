@@ -345,6 +345,7 @@ export default function App() {
               autoCorrect="on"
               spellCheck="true"
               /* -------------------------------------- */
+              rows={1}
               className="w-full bg-ios-card rounded-xl py-3 pl-4 pr-12 shadow-sm border border-gray-100 focus:outline-none focus:ring-2 focus:ring-ios-blue transition-all"
             />
             <button type="submit" className="absolute right-3 text-ios-blue disabled:opacity-50" disabled={!newTask.trim()}>

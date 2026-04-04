@@ -133,8 +133,11 @@ export default function LiveChat({ onClose, pagerFailed }) {
     
     // Auto-resize logic
     const textarea = e.target;
-    textarea.style.height = '44px'; // Reset to base height to allow shrinking when deleting text
-    const newHeight = Math.min(textarea.scrollHeight, 120); // Cap the expansion at 120px (~5 lines)
+    // THE FIX: Crush the height to 0 to force a clean recalculation of the scrollHeight
+    textarea.style.height = '0px'; 
+    
+    // Clamp the height: minimum 44px, maximum 120px
+    const newHeight = Math.max(44, Math.min(textarea.scrollHeight, 120));
     textarea.style.height = `${newHeight}px`;
   };
 
