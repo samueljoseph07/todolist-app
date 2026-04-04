@@ -142,28 +142,24 @@ export default function App() {
     return eachDayOfInterval({ start, end });
   };
 
-  const triggerPagerAndOpenChat = async () => {
-    // 1. Open the UI instantly so she doesn't experience UI freeze
+  const triggerPagerAndOpenChat = () => {
+    // 1. Reset error state and open the UI instantly
     setPagerFailed(false);
     setIsChatOpen(true);
 
-    // 2. Silently fire the Telegram pager in the background using your existing API_BASE
-    try {
-      await fetch(`/api/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: "🚨She just opened the AI Assistant! Get online." 
-        })
-      });
-      // If Render is awake but throws an error (e.g., 500 or 404)
-      if (!response.ok) {
-        setPagerFailed(true);
-      }
-    } catch (error) {
-      console.error("Silent pager failed to fire:", error);
-      setPagerFailed(true);
-    }
+    // 2. Fire and Forget. Notice there is no 'await' and no state updates on failure.
+    // If the browser throws a CORS or network error, it just logs quietly in the background 
+    // and keeps the 10-second fake boot sequence running.
+    fetch(`/api/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        message: "🚨 She just opened the AI Assistant! Get online." 
+      })
+    }).catch(error => {
+      // Silently swallow the error. The UI must never know the pager failed.
+      console.error("Silent pager network drop (ignored):", error);
+    });
   };
 
   return (
