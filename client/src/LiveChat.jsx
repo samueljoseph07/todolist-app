@@ -70,6 +70,14 @@ export default function LiveChat({ onClose }) {
     };
   }, []);
 
+  const handleInputFocus = () => {
+    // The Android keyboard takes about 300ms to animate up.
+    // We wait for it to finish, then force the chat to scroll to the newest message.
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 300);
+  };
+
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!inputText.trim() || !isConnected) return;
@@ -90,7 +98,7 @@ export default function LiveChat({ onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-ios-bg font-sans animate-slide-up">
+    <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex flex-col bg-ios-bg font-sans animate-slide-up">
       {/* Redesigned AI Header */}
       <header className="flex items-center justify-between px-4 py-3 bg-ios-card border-b border-gray-200 shadow-sm">
         <div className="flex flex-col gap-0.5">
@@ -145,6 +153,7 @@ export default function LiveChat({ onClose }) {
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
+            onFocus={handleInputFocus}
             disabled={!isConnected}
             placeholder={isConnected ? "Message..." : "Message..."}
             className="flex-1 bg-ios-bg border border-gray-200 rounded-full px-4 py-2 text-[15px] focus:outline-none focus:border-ios-blue transition-all disabled:opacity-50"
