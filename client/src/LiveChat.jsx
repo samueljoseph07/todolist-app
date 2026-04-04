@@ -141,6 +141,20 @@ export default function LiveChat({ onClose, pagerFailed }) {
     textarea.style.height = `${newHeight}px`;
   };
 
+  // NEW: The React-native auto-resize hook
+  useEffect(() => {
+    if (!inputRef.current) return;
+    
+    // 1. Reset to base height to strip old DOM memory
+    inputRef.current.style.height = '44px';
+    
+    // 2. Measure the TRUE height of the newly rendered text
+    const scrollHeight = inputRef.current.scrollHeight;
+    
+    // 3. Clamp between 44px and 120px, and apply
+    inputRef.current.style.height = `${Math.max(44, Math.min(scrollHeight, 120))}px`;
+  }, [inputText]); // <--- This array tells React to run this every time the text changes
+
   // NEW: DVH used here to handle the Android keyboard resizing the browser
   return (
     <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex flex-col bg-ios-bg font-sans animate-slide-up">
@@ -201,7 +215,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
             inputMode="text"
             ref={inputRef}
             value={inputText}
-            onChange={handleTextChange} // Using the new auto-resize handler
+            onChange={(e) => setInputText(e.target.value)}
             onFocus={handleInputFocus}
             disabled={!isConnected}
             placeholder={isConnected ? "Message..." : "Message..."}
