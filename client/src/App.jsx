@@ -1,3 +1,4 @@
+import LiveChat from './LiveChat'; // Adjust path as needed
 import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
@@ -16,6 +17,8 @@ export default function App() {
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [supportMessage, setSupportMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
@@ -138,11 +141,37 @@ export default function App() {
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">
           {view === 'today' ? 'Today' : 'History'}
         </h1>
+        {/* The Sneaky AI Button */}
+        <div className="flex items-center gap-8">
+        <button 
+            onClick={() => setIsChatOpen(true)}
+            className="pl-20 text-blue-400 hover:text-ios-blue transition-colors"
+            aria-label="AI Assistant"
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="22" 
+              height="22" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+              <path d="M20 3v4" />
+              <path d="M22 5h-4" />
+              <path d="M4 17v2" />
+              <path d="M5 18H3" />
+            </svg>
+          </button>
         <button 
           onClick={() => setIsMessageModalOpen(true)}
           className="p-2 text-blue-400 hover:text-ios-blue transition-colors">
           <MessageCircle size={24} />
         </button>
+        </div>
       </header>
       {/* <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10">You're doing great! Hope you have an amazing day!</p> */}
 
@@ -337,7 +366,7 @@ export default function App() {
           </div>
         </div>
       )}
-
+      {isChatOpen && <LiveChat onClose={() => setIsChatOpen(false)} />}
     </div>
   );
 }
