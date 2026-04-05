@@ -201,7 +201,7 @@ export default function App() {
         </button>
         </div>
       </header>
-      {/* <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10">You're doing great! Hope you have an amazing day!</p> */}
+      <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10">You've done a great job yesterday! Keep going!!</p>
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
