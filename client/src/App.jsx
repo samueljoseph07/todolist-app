@@ -201,7 +201,7 @@ export default function App() {
         </button>
         </div>
       </header>
-      <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10 italic">For the AI chat to work, please keep the chat open till the model is connected.</p>
+      {/* <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10 italic">For the AI chat to work, please keep the chat open till the model is connected.</p> */}
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
