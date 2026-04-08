@@ -1,20 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { useChat } from './ChatProvider';
 
 export default function LiveChat({ onClose, pagerFailed }) {
-  const [messages, setMessages] = useState([]);
+  const { messages, isConnected, sendMessage } = useChat();
+  
   const [inputText, setInputText] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
   
-  const channelRef = useRef(null);
   const messagesEndRef = useRef(null);
-  
-  // NEW: Ref to maintain keyboard focus
   const inputRef = useRef(null); 
 
   // Auto-scroll to newest message
@@ -64,55 +57,11 @@ export default function LiveChat({ onClose, pagerFailed }) {
     }
   }, [pagerFailed]);
 
-  // The Realtime WebSocket Connection
-  useEffect(() => {
-    const channel = supabase.channel('couple_chat', {
-      config: { 
-        broadcast: { self: true },
-        presence: { key: 'Priya' } 
-      },
-    });
-
-    channel
-      .on('broadcast', { event: 'message' }, (payload) => {
-        setMessages((prev) => [...prev, payload.payload]);
-      })
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const activeUsersCount = Object.keys(state).length;
-        setIsConnected(activeUsersCount > 1);
-        console.log("Supabase Presence State:", state);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ online: true });
-        } else {
-          setIsConnected(false);
-        }
-      });
-
-    channelRef.current = channel;
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const sendMessage = async (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
     if (!inputText.trim() || !isConnected) return;
 
-    const newMessage = {
-      sender: 'Priya', 
-      text: inputText,
-      timestamp: Date.now(),
-    };
-
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'message',
-      payload: newMessage,
-    });
+    await sendMessage(inputText);
 
     setInputText('');
     
@@ -127,19 +76,6 @@ export default function LiveChat({ onClose, pagerFailed }) {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 300);
-  };
-
-  const handleTextChange = (e) => {
-    setInputText(e.target.value);
-    
-    // Auto-resize logic
-    const textarea = e.target;
-    // THE FIX: Crush the height to 0 to force a clean recalculation of the scrollHeight
-    textarea.style.height = '0px'; 
-    
-    // Clamp the height: minimum 44px, maximum 120px
-    const newHeight = Math.max(44, Math.min(textarea.scrollHeight, 120));
-    textarea.style.height = `${newHeight}px`;
   };
 
   // NEW: The React-native auto-resize hook
@@ -210,7 +146,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
       {/* Input Form */}
       <footer className="bg-ios-card border-t border-gray-200 p-3 pb-safe shrink-0">
         {/* Changed to items-end so the Send button stays at the bottom when text area grows */}
-        <form onSubmit={sendMessage} className="flex gap-2 items-end">
+        <form onSubmit={handleSend} className="flex gap-2 items-end">
           <textarea
             name="chat-message"
             inputMode="text"
