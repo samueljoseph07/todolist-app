@@ -4,9 +4,10 @@ import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
 import { MessageCircle, X } from 'lucide-react'; // Added MessageCircle and X
 
-const API_BASE = 'https://todolist-app-backend-ac32.onrender.com/api';
+// const API_BASE = 'https://todolist-app-backend-ac32.onrender.com/api';
 //local:
 // const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 export default function App() {
   const [view, setView] = useState('today');
