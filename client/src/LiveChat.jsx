@@ -10,6 +10,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
   const [inputText, setInputText] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
+  const typingTimeoutRef = useRef(null);
   
   const channelRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -96,6 +97,29 @@ export default function LiveChat({ onClose, pagerFailed }) {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  const handleTyping = () => {
+    if (!isConnected || !channelRef.current) return;
+
+    // Broadcast that she is currently typing
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { isTyping: true },
+    }).catch(console.error);
+
+    // Clear the old timer
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    // Set a new timer: if 2 seconds pass without a keystroke, she stopped
+    typingTimeoutRef.current = setTimeout(() => {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { isTyping: false },
+      }).catch(console.error);
+    }, 2000);
+  };
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -216,6 +240,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
             ref={inputRef}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleTyping}
             onFocus={handleInputFocus}
             disabled={!isConnected}
             placeholder={isConnected ? "Message..." : "Message..."}
