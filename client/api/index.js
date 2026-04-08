@@ -1,8 +1,10 @@
-require('dotenv').config();
-const nodemailer = require('nodemailer');
-const express = require('express');
-const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
+import dotenv from 'dotenv';
+dotenv.config();
+
+import nodemailer from 'nodemailer';
+import express from 'express';
+import cors from 'cors';
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase REST Client
 const supabase = createClient(
@@ -229,4 +231,4 @@ const PORT = process.env.PORT || 10000;
 // app.listen(PORT, '0.0.0.0', () => {
 //   console.log(`Backend securely running on port ${PORT} over REST API`);
 // });
-module.exports = app;
+export default app;
