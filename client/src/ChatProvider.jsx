@@ -24,6 +24,9 @@ export function ChatProvider({ children, currentUser }) {
       },
     });
 
+    console.log(`[IDENTITY]: I am ${currentUser}`);
+    console.log(`[TARGET DB]:`, import.meta.env.VITE_SUPABASE_URL.substring(0, 35) + "...");
+
     // 2. Attach listeners
     channel
       .on('broadcast', { event: 'message' }, (payload) => {
