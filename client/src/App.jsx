@@ -202,7 +202,7 @@ export default function App() {
         </button>
         </div>
       </header>
-      <p className="pt-0 pb-2 px-6 flex justify-between items-center z-10 italic">The AI chat is having some technical difficulties. It will be fixed shortly.</p>
+      <small className="pt-0 pb-2 px-6 flex justify-between items-center z-10 italic">The AI chat might not be available this night. Our developers are working on it. We'll update you as soon as it's back online :)</small>
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
