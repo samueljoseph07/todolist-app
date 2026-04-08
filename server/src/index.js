@@ -223,7 +223,7 @@ app.get('/api/history', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 // --- REDUNDANT ALERT ROUTE (Telegram -> Email Fallback) ---
 app.post('/api/message', async (req, res) => {
@@ -284,6 +284,7 @@ app.post('/api/message', async (req, res) => {
   }
 });
 
+// The '0.0.0.0' is the critical fix. It tells Node to accept external connections.
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Backend securely running on port ${PORT} over REST API`);
+  console.log(`Backend securely running on port ${PORT} over REST API`);
 });
