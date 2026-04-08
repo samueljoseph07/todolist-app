@@ -1,25 +1,21 @@
-import React from 'react'
-import { StrictMode } from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import './index.css'
+import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ChatProvider } from './ChatProvider.jsx'; // Import the provider
+import App from './App.jsx';
+import './index.css';
+import { ChatProvider } from './ChatProvider.jsx';
+import { registerSW } from 'virtual:pwa-register';
 
-import { registerSW } from 'virtual:pwa-register'
-
+// 1. Single, unified render call wrapping the entire app
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {/* 2. Wrap the App and set HER user identity */}
     <ChatProvider currentUser="Priya">
       <App />
     </ChatProvider>
-  </StrictMode>,
-)
+  </StrictMode>
+);
 
+// 2. Service Worker & Background Polling Logic
 let swRegistration = null;
-
-// 1. Define your background polling interval (e.g., 15 minutes)
 const INTERVAL_MS = 15 * 60 * 1000; 
 
 const updateSW = registerSW({
@@ -41,19 +37,12 @@ const updateSW = registerSW({
       }, INTERVAL_MS);
     }
   }
-})
+});
 
-// 2. UNTHROTTLED Foreground Check
+// 3. UNTHROTTLED Foreground Check
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && swRegistration) {
     console.log('App in foreground. Pinging Vercel directly...');
-    // This fires immediately, every single time the app is opened or switched to.
     swRegistration.update(); 
   }
 });
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
