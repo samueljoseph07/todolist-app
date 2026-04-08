@@ -2,13 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from './ChatProvider';
 
 export default function LiveChat({ onClose, pagerFailed }) {
-  const { messages, isConnected, sendMessage } = useChat();
+  const { messages, isConnected, sendMessage, clearMessages, startConnection, killConnection } = useChat();
   
   const [inputText, setInputText] = useState('');
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null); 
+
+  // NEW: Turn on the radio when the chat opens
+  useEffect(() => {
+    startConnection();
+  }, []);
 
   // Auto-scroll to newest message
   useEffect(() => {
@@ -18,18 +23,16 @@ export default function LiveChat({ onClose, pagerFailed }) {
   // NEW: The Home Button Kill Switch (Page Visibility API)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      // If the app is sent to the background, instantly close the chat
       if (document.hidden) {
+        clearMessages(); // Wipe RAM
+        killConnection(); // SEVER THE NETWORK
         onClose(); 
       }
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [onClose]);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [onClose, clearMessages, killConnection]);
 
   // The Trojan Horse Sequence (10-Second Hang)
   useEffect(() => {
@@ -107,7 +110,11 @@ export default function LiveChat({ onClose, pagerFailed }) {
         </div>
 
         <button 
-          onClick={onClose} 
+          onClick={() => {
+            clearMessages(); // Wipe RAM
+            killConnection(); // SEVER THE NETWORK
+            onClose();
+          }}
           className="text-ios-blue font-medium text-[15px] active:opacity-50 transition-opacity"
         >
           Close

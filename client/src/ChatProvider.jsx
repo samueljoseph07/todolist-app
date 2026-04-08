@@ -1,22 +1,25 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize OUTSIDE the React tree so it never rebuilds
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
-// Create the Context Bridge
 const ChatContext = createContext();
 
 export function ChatProvider({ children, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isSheTyping, setIsSheTyping] = useState(false); 
+  
   const channelRef = useRef(null);
 
-  useEffect(() => {
-    // 1. Build the channel once
+  // NEW: Manual Switch to turn the radio ON
+  const startConnection = () => {
+    // If a connection already exists, do nothing to prevent duplicates
+    if (channelRef.current) return;
+
     const channel = supabase.channel('couple_chat', {
       config: { 
         broadcast: { self: true },
@@ -24,13 +27,15 @@ export function ChatProvider({ children, currentUser }) {
       },
     });
 
-    console.log(`[IDENTITY]: I am ${currentUser}`);
-    console.log(`[TARGET DB]:`, import.meta.env.VITE_SUPABASE_URL.substring(0, 35) + "...");
-
-    // 2. Attach listeners
     channel
       .on('broadcast', { event: 'message' }, (payload) => {
         setMessages((prev) => [...prev, payload.payload]);
+        setIsSheTyping(false); 
+      })
+      .on('broadcast', { event: 'typing' }, (payload) => {
+        if (payload.payload.sender !== currentUser) {
+          setIsSheTyping(payload.payload.isTyping);
+        }
       })
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
@@ -46,17 +51,24 @@ export function ChatProvider({ children, currentUser }) {
       });
 
     channelRef.current = channel;
+  };
 
-    // 3. Clean up ONLY if the entire app is destroyed
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser]); // Only reconnect if the user identity physically changes
+  // NEW: Manual Switch to turn the radio OFF
+  const killConnection = () => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+      setIsConnected(false);
+      setIsSheTyping(false);
+    }
+  };
 
-  // 4. The single global send function
+  const clearMessages = () => {
+    setMessages([]);
+  };
+
   const sendMessage = async (text) => {
     if (!text.trim() || !isConnected || !channelRef.current) return;
-    
     await channelRef.current.send({
       type: 'broadcast',
       event: 'message',
@@ -64,13 +76,29 @@ export function ChatProvider({ children, currentUser }) {
     });
   };
 
-  // 5. Expose the data to the rest of the app
+  const sendTyping = async (isTyping) => {
+    if (!isConnected || !channelRef.current) return;
+    await channelRef.current.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { sender: currentUser, isTyping },
+    });
+  };
+
+  // Failsafe: Destroy connection if the entire app unmounts
+  useEffect(() => {
+    return () => killConnection();
+  }, []);
+
   return (
-    <ChatContext.Provider value={{ messages, isConnected, sendMessage }}>
+    <ChatContext.Provider value={{ 
+      messages, isConnected, isSheTyping, 
+      sendMessage, sendTyping, clearMessages, 
+      startConnection, killConnection // EXPOSE THE SWITCHES
+    }}>
       {children}
     </ChatContext.Provider>
   );
 }
 
-// Custom hook so your UI can easily grab the data
 export const useChat = () => useContext(ChatContext);
