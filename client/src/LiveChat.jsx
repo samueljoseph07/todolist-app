@@ -81,6 +81,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
         const state = channel.presenceState();
         const activeUsersCount = Object.keys(state).length;
         setIsConnected(activeUsersCount > 1);
+        console.log("Supabase Presence State:", state);
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
