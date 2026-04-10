@@ -132,7 +132,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
           </div>
         ) : (
           messages.map((msg, index) => {
-            const isMe = msg.sender === 'Priya'; 
+            const isMe = msg.sender === 'priya'; 
             return (
               <div key={index} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[75%] px-4 py-2.5 text-[15px] leading-relaxed shadow-sm ${

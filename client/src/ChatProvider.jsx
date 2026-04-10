@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ Singleton client (never recreated)
+// ✅ Singleton client
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -23,9 +23,10 @@ export function ChatProvider({ children, currentUser }) {
 
   const channelRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const isManualCloseRef = useRef(false); // 🔴 key fix
 
   // ---------------------------
-  // 🔁 SAFE RECONNECT HANDLER
+  // 🔁 RECONNECT SCHEDULER
   // ---------------------------
   const scheduleReconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) return;
@@ -40,7 +41,9 @@ export function ChatProvider({ children, currentUser }) {
   // 🚀 START CONNECTION
   // ---------------------------
   const startConnection = useCallback(() => {
-    // Prevent duplicate active connections
+    console.log('Starting connection...');
+
+    // Prevent duplicate active connection
     if (
       channelRef.current &&
       channelRef.current.state === 'joined'
@@ -48,22 +51,16 @@ export function ChatProvider({ children, currentUser }) {
       return;
     }
 
-    // Clean up any stale channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
     const channel = supabase.channel('couple_chat', {
       config: {
         broadcast: { self: true },
-        presence: { key: currentUser },
+        presence: { key: currentUser }, // IMPORTANT: use 'sam' or 'priya'
       },
     });
 
     channel
       // ---------------------------
-      // 📩 MESSAGE HANDLER
+      // 📩 MESSAGE
       // ---------------------------
       .on('broadcast', { event: 'message' }, (payload) => {
         setMessages((prev) => [...prev, payload.payload]);
@@ -71,7 +68,7 @@ export function ChatProvider({ children, currentUser }) {
       })
 
       // ---------------------------
-      // ⌨️ TYPING INDICATOR
+      // ⌨️ TYPING
       // ---------------------------
       .on('broadcast', { event: 'typing' }, (payload) => {
         if (payload.payload.sender !== currentUser) {
@@ -84,20 +81,21 @@ export function ChatProvider({ children, currentUser }) {
       // ---------------------------
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
-        const users = Object.keys(state).length;
-        setIsConnected(users > 1);
+        const users = Object.keys(state);
+
+        setIsConnected(
+          users.includes('sam') && users.includes('priya')
+        );
       })
 
       // ---------------------------
-      // 📡 CONNECTION STATUS
+      // 📡 STATUS HANDLER
       // ---------------------------
       .subscribe((status) => {
         console.log('[Realtime status]:', status);
-        console.log('Reconnecting triggered');
-        console.log('Starting connection...');
-        console.log('Killing connection...');
 
         if (status === 'SUBSCRIBED') {
+          isManualCloseRef.current = false;
           channel.track({ online: true });
           setIsConnected(true);
         }
@@ -108,6 +106,14 @@ export function ChatProvider({ children, currentUser }) {
           status === 'CLOSED'
         ) {
           setIsConnected(false);
+
+          // 🔴 Prevent infinite loop
+          if (isManualCloseRef.current) {
+            console.log('Manual disconnect, skip reconnect');
+            return;
+          }
+
+          console.log('Reconnecting triggered');
 
           if (channelRef.current) {
             supabase.removeChannel(channelRef.current);
@@ -122,10 +128,13 @@ export function ChatProvider({ children, currentUser }) {
   }, [currentUser, scheduleReconnect]);
 
   // ---------------------------
-  // 🔌 KILL CONNECTION (EXPLICIT ONLY)
+  // 🔌 MANUAL DISCONNECT
   // ---------------------------
   const killConnection = useCallback(() => {
+    console.log('Killing connection...');
+
     if (channelRef.current) {
+      isManualCloseRef.current = true;
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
@@ -143,8 +152,7 @@ export function ChatProvider({ children, currentUser }) {
   // 💬 SEND MESSAGE
   // ---------------------------
   const sendMessage = async (text) => {
-    if (!isConnected) return;
-    if (!text.trim() || !channelRef.current) return;
+    if (!text.trim() || !channelRef.current || !isConnected) return;
 
     await channelRef.current.send({
       type: 'broadcast',
@@ -158,11 +166,10 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // ⌨️ SEND TYPING
+  // ⌨️ TYPING
   // ---------------------------
   const sendTyping = async (isTyping) => {
-    if (!isConnected) return;
-    if (!channelRef.current) return;
+    if (!channelRef.current || !isConnected) return;
 
     await channelRef.current.send({
       type: 'broadcast',
@@ -187,14 +194,10 @@ export function ChatProvider({ children, currentUser }) {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
-        // 🔐 Privacy: wipe UI only
-        clearMessages();
-
-        // Optional: fully disconnect
-        killConnection();
+        clearMessages();     // privacy
+        killConnection();    // disconnect
       } else {
-        // 🔁 Reconnect when user returns
-        startConnection();
+        startConnection();   // reconnect
       }
     };
 
@@ -205,7 +208,7 @@ export function ChatProvider({ children, currentUser }) {
   }, [startConnection, killConnection]);
 
   // ---------------------------
-  // 🧹 CLEANUP ON UNMOUNT
+  // 🧹 CLEANUP
   // ---------------------------
   useEffect(() => {
     return () => {
@@ -224,6 +227,7 @@ export function ChatProvider({ children, currentUser }) {
         clearMessages,
         startConnection,
         killConnection,
+        currentUser,
       }}
     >
       {children}
