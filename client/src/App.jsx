@@ -202,7 +202,7 @@ export default function App() {
         </button>
         </div>
       </header>
-      <small className="px-6 pb-2 italic w-full break-words">+hEfQSkFfeejDaBD3loF7eXQDpsRlEBOORp5p6KoIBDbRcyghtNpfA==</small>
+      <small className="px-6 pb-2 italic w-full break-words">Good morning!</small>
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
