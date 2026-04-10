@@ -202,7 +202,7 @@ export default function App() {
         </button>
         </div>
       </header>
-      <small className="px-6 pb-2 italic w-full break-words">Good morning! Please try out the AI chat.</small>
+      <small className="px-6 pb-2 italic w-full break-words"></small>
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
