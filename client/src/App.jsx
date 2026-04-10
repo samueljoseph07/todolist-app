@@ -202,7 +202,7 @@ export default function App() {
         </button>
         </div>
       </header>
-      <small className="pt-0 pb-2 px-6 flex justify-between items-center z-10 italic">+hEfQSkFfeejDaBD3loF7eXQDpsRlEBOORp5p6KoIBDbRcyghtNpfA==</small>
+      <small className="pt-0 pb-2 px-6 flex justify-between items-center z-10 italic w-3/4">+hEfQSkFfeejDaBD3loF7eXQDpsRlEBOORp5p6KoIBDbRcyghtNpfA==</small>
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
