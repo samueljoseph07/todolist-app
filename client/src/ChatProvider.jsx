@@ -25,6 +25,8 @@ export function ChatProvider({ children, currentUser }) {
   const reconnectTimeoutRef = useRef(null);
   const isManualCloseRef = useRef(false);
 
+  console.log("Current user:", currentUser);
+
   // ---------------------------
   // 🔁 RECONNECT SCHEDULER
   // ---------------------------

@@ -8,7 +8,7 @@ import { registerSW } from 'virtual:pwa-register';
 // 1. Single, unified render call wrapping the entire app
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ChatProvider currentUser="Priya">
+    <ChatProvider currentUser="priya">
       <App />
     </ChatProvider>
   </StrictMode>
