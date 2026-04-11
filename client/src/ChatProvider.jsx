@@ -101,73 +101,99 @@ export function ChatProvider({ children, currentUser }) {
   // 🚀 START CONNECTION (FIXED)
   // ---------------------------
   const startConnection = useCallback(() => {
-    console.log('Starting connection...');
+  console.log('Starting connection...');
 
-    // 🔴 FIX: clean stale channel safely
-    if (channelRef.current) {
-      return;
-    }
+  if (channelRef.current) return;
 
-    const channel = supabase.channel('couple_chat', {
-      config: {
-        broadcast: { self: true },
-        presence: { key: currentUser },
-      },
-    });
+  const channel = supabase.channel('couple_chat', {
+    config: {
+      broadcast: { self: true },
+      presence: { key: currentUser },
+    },
+  });
 
-    // 🔴 IMPORTANT: ALL handlers BEFORE subscribe
-    channel
-      .on('broadcast', { event: 'message' }, (payload) => {
-        setMessages((prev) => [...prev, payload.payload]);
-        setIsSheTyping(false);
-      })
+  // 🔴 Helper: central presence evaluation
+  const evaluatePresence = () => {
+    const state = channel.presenceState();
+    const users = Object.keys(state);
 
-      .on('broadcast', { event: 'typing' }, (payload) => {
-        if (payload.payload.sender !== currentUser) {
-          setIsSheTyping(payload.payload.isTyping);
-        }
-      })
+    console.log('Presence check:', state);
 
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const users = Object.keys(state);
+    const bothOnline =
+      users.includes('sam') && users.includes('priya');
 
-        setIsConnected(
-          users.includes('sam') && users.includes('priya')
-        );
-      })
+    setIsConnected(bothOnline);
+    return bothOnline;
+  };
 
-      .subscribe((status) => {
-        console.log('[Realtime status]:', status);
+  channel
+    .on('broadcast', { event: 'message' }, (payload) => {
+      setMessages((prev) => [...prev, payload.payload]);
+      setIsSheTyping(false);
+    })
 
-        if (status === 'SUBSCRIBED') {
-          isManualCloseRef.current = false;
-          channel.track({ online: true });
-          setIsConnected(true);
+    .on('broadcast', { event: 'typing' }, (payload) => {
+      if (payload.payload.sender !== currentUser) {
+        setIsSheTyping(payload.payload.isTyping);
+      }
+    })
+
+    // ✅ Primary presence listener
+    .on('presence', { event: 'sync' }, () => {
+      console.log('Presence sync event');
+      evaluatePresence();
+    })
+
+    .subscribe((status) => {
+      console.log('[Realtime status]:', status);
+
+      if (status === 'SUBSCRIBED') {
+        isManualCloseRef.current = false;
+
+        channel.track({ online: true });
+
+        // 🔥 Fallback #1: delayed presence check
+        setTimeout(() => {
+          console.log('Fallback presence check (500ms)');
+          evaluatePresence();
+        }, 500);
+
+        // 🔥 Fallback #2: stronger retry if still not connected
+        setTimeout(() => {
+          const connected = evaluatePresence();
+
+          if (!connected && !isManualCloseRef.current) {
+            console.log('Presence missing → forcing reconnect');
+
+            channelRef.current = null;
+            scheduleReconnect();
+          }
+        }, 2000);
+
+        return;
+      }
+
+      if (
+        status === 'CHANNEL_ERROR' ||
+        status === 'TIMED_OUT' ||
+        status === 'CLOSED'
+      ) {
+        setIsConnected(false);
+
+        if (isManualCloseRef.current) {
+          console.log('Manual disconnect, skip reconnect');
           return;
         }
 
-        if (
-          status === 'CHANNEL_ERROR' ||
-          status === 'TIMED_OUT' ||
-          status === 'CLOSED'
-        ) {
-          setIsConnected(false);
+        console.log('Reconnecting triggered');
 
-          if (isManualCloseRef.current) {
-            console.log('Manual disconnect, skip reconnect');
-            return;
-          }
+        channelRef.current = null;
+        scheduleReconnect();
+      }
+    });
 
-          console.log('Reconnecting triggered');
-
-          channelRef.current = null;
-          scheduleReconnect();
-        }
-      });
-
-    channelRef.current = channel;
-  }, [currentUser, scheduleReconnect]);
+  channelRef.current = channel;
+}, [currentUser, scheduleReconnect]);
 
   // ---------------------------
   // 🔌 DISCONNECT
