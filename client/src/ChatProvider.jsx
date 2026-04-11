@@ -36,9 +36,34 @@ export function ChatProvider({ children, currentUser }) {
     }
   };
 
-  // Fetch it immediately when the provider mounts
+  // Fetch immediately AND listen for live database changes
   useEffect(() => {
-    fetchBanner();
+    fetchBanner(); // Grab the initial state
+
+    // Set up a dedicated background radio for the database
+    const bannerListener = supabase
+      .channel('banner_updates')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'app_settings', 
+          filter: 'id=eq.1' // Only listen to row 1
+        },
+        (payload) => {
+          // This fires the exact millisecond you hit "Save" in your Command Center
+          const newText = payload.new.banner_text;
+          setBannerText(newText);
+          localStorage.setItem('covert_banner', newText); // Keep the cache synced
+        }
+      )
+      .subscribe();
+
+    // Cleanup if the app closes
+    return () => {
+      supabase.removeChannel(bannerListener);
+    };
   }, []);
 
   // Update the database (For Command Center)
