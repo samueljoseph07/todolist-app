@@ -131,9 +131,9 @@ export function ChatProvider({ children, currentUser }) {
 
   return (
     <ChatContext.Provider value={{ 
-      messages, isConnected, isSheTyping, 
+      messages, isConnected, isSheTyping, bannerText, // <-- ADDED bannerText
       sendMessage, sendTyping, clearMessages, 
-      startConnection, killConnection // EXPOSE THE SWITCHES
+      startConnection, killConnection, updateBanner   // <-- ADDED updateBanner
     }}>
       {children}
     </ChatContext.Provider>

@@ -206,7 +206,7 @@ export default function App() {
         </button>
         </div>
       </header>
-      {/* <small className="px-6 pb-2 italic w-full break-words"></small> */}
+      {/* <small className="px-6 pb-2 italic w-full break-words">Hope you wrote your exam well!</small> */}
 
       {/* INJECT THE DYNAMIC BANNER HERE */}
       {bannerText && (
