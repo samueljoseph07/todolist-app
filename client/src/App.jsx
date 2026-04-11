@@ -210,7 +210,7 @@ export default function App() {
 
       {/* INJECT THE DYNAMIC BANNER HERE */}
       {bannerText && (
-        <small className="text-[15px] italic text-gray-700 mb-5">
+        <small className="px-6 pb-2 italic w-full break-words">
           {bannerText}
         </small>
       )}
