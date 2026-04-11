@@ -12,8 +12,47 @@ export function ChatProvider({ children, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isSheTyping, setIsSheTyping] = useState(false); 
+
+  // INSTANT LOAD: Respect empty strings so the banner can be hidden
+  const [bannerText, setBannerText] = useState(() => {
+    const cached = localStorage.getItem('covert_banner');
+    if (cached !== null) return cached; // Returns "" if you intentionally cleared it
+    return ''; // Only shows if the cache has literally never existed
+  });
   
   const channelRef = useRef(null);
+
+  // SILENT UPDATE: Fetch true text from Supabase in the background
+  const fetchBanner = async () => {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('banner_text')
+      .eq('id', 1)
+      .single();
+      
+    if (data) {
+      setBannerText(data.banner_text);
+      localStorage.setItem('covert_banner', data.banner_text); // Cache for next boot
+    }
+  };
+
+  // Fetch it immediately when the provider mounts
+  useEffect(() => {
+    fetchBanner();
+  }, []);
+
+  // Update the database (For Command Center)
+  const updateBanner = async (newText) => {
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ banner_text: newText })
+      .eq('id', 1);
+      
+    if (!error) {
+      setBannerText(newText);
+      localStorage.setItem('covert_banner', newText);
+    }
+  };
 
   // NEW: Manual Switch to turn the radio ON
   const startConnection = () => {

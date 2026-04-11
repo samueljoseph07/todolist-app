@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
 import { MessageCircle, X } from 'lucide-react'; // Added MessageCircle and X
+import { useChat } from './ChatProvider'; // 1. IMPORT THIS
 
 // const API_BASE = 'https://todolist-app-backend-ac32.onrender.com/api';
 //local:
@@ -21,6 +22,9 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [pagerFailed, setPagerFailed] = useState(false); // NEW STATE
   const [supportError, setSupportError] = useState(null); // NEW STATE
+
+  // 2. PULL THE TEXT FROM THE PROVIDER
+  const { bannerText } = useChat();
 
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -202,7 +206,14 @@ export default function App() {
         </button>
         </div>
       </header>
-      <small className="px-6 pb-2 italic w-full break-words"></small>
+      {/* <small className="px-6 pb-2 italic w-full break-words"></small> */}
+
+      {/* INJECT THE DYNAMIC BANNER HERE */}
+      {bannerText && (
+        <small className="text-[15px] italic text-gray-700 mb-5">
+          {bannerText}
+        </small>
+      )}
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
