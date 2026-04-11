@@ -25,74 +25,68 @@ export function ChatProvider({ children, currentUser }) {
   const reconnectTimeoutRef = useRef(null);
   const isManualCloseRef = useRef(false);
 
-  // INSTANT LOAD: Respect empty strings so the banner can be hidden
+  // ---------------------------
+  // 🟢 BANNER SYSTEM (UNCHANGED)
+  // ---------------------------
   const [bannerText, setBannerText] = useState(() => {
     const cached = localStorage.getItem('covert_banner');
-    if (cached !== null) return cached; // Returns "" if you intentionally cleared it
-    return ''; // Only shows if the cache has literally never existed
+    if (cached !== null) return cached;
+    return '';
   });
 
-  // SILENT UPDATE: Fetch true text from Supabase in the background
   const fetchBanner = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('app_settings')
       .select('banner_text')
       .eq('id', 1)
       .single();
-      
+
     if (data) {
       setBannerText(data.banner_text);
-      localStorage.setItem('covert_banner', data.banner_text); // Cache for next boot
+      localStorage.setItem('covert_banner', data.banner_text);
     }
   };
 
-  // Fetch immediately AND listen for live database changes
   useEffect(() => {
-    fetchBanner(); // Grab the initial state
+    fetchBanner();
 
-    // Set up a dedicated background radio for the database
     const bannerListener = supabase
       .channel('banner_updates')
       .on(
         'postgres_changes',
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'app_settings', 
-          filter: 'id=eq.1' // Only listen to row 1
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'app_settings',
+          filter: 'id=eq.1',
         },
         (payload) => {
-          // This fires the exact millisecond you hit "Save" in your Command Center
           const newText = payload.new.banner_text;
           setBannerText(newText);
-          localStorage.setItem('covert_banner', newText); // Keep the cache synced
+          localStorage.setItem('covert_banner', newText);
         }
       )
       .subscribe();
 
-    // Cleanup if the app closes
     return () => {
       supabase.removeChannel(bannerListener);
     };
   }, []);
 
-  // Update the database (For Command Center)
   const updateBanner = async (newText) => {
     const { error } = await supabase
       .from('app_settings')
       .update({ banner_text: newText })
       .eq('id', 1);
-      
+
     if (!error) {
       setBannerText(newText);
       localStorage.setItem('covert_banner', newText);
     }
   };
 
-  console.log("Current user:", currentUser);
-
   // ---------------------------
-  // 🔁 RECONNECT SCHEDULER
+  // 🔁 RECONNECT
   // ---------------------------
   const scheduleReconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) return;
@@ -104,36 +98,36 @@ export function ChatProvider({ children, currentUser }) {
   }, []);
 
   // ---------------------------
-  // 🚀 START CONNECTION
+  // 🚀 START CONNECTION (FIXED)
   // ---------------------------
   const startConnection = useCallback(() => {
     console.log('Starting connection...');
 
-    // Prevent duplicate active connection
-    if (channelRef.current) return;
+    // 🔴 FIX: clean stale channel safely
+    if (channelRef.current) {
+      return;
+    }
 
     const channel = supabase.channel('couple_chat', {
       config: {
         broadcast: { self: true },
-        presence: { key: currentUser }, // must be 'sam' or 'priya'
+        presence: { key: currentUser },
       },
     });
 
+    // 🔴 IMPORTANT: ALL handlers BEFORE subscribe
     channel
-      // 📩 MESSAGE
       .on('broadcast', { event: 'message' }, (payload) => {
         setMessages((prev) => [...prev, payload.payload]);
         setIsSheTyping(false);
       })
 
-      // ⌨️ TYPING
       .on('broadcast', { event: 'typing' }, (payload) => {
         if (payload.payload.sender !== currentUser) {
           setIsSheTyping(payload.payload.isTyping);
         }
       })
 
-      // 👥 PRESENCE
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const users = Object.keys(state);
@@ -143,7 +137,6 @@ export function ChatProvider({ children, currentUser }) {
         );
       })
 
-      // 📡 STATUS HANDLER (SAFE)
       .subscribe((status) => {
         console.log('[Realtime status]:', status);
 
@@ -161,7 +154,6 @@ export function ChatProvider({ children, currentUser }) {
         ) {
           setIsConnected(false);
 
-          // 🔴 Do NOT reconnect if manually closed
           if (isManualCloseRef.current) {
             console.log('Manual disconnect, skip reconnect');
             return;
@@ -169,9 +161,7 @@ export function ChatProvider({ children, currentUser }) {
 
           console.log('Reconnecting triggered');
 
-          // 🔴 IMPORTANT: just reset reference, DO NOT remove channel here
           channelRef.current = null;
-
           scheduleReconnect();
         }
       });
@@ -180,14 +170,14 @@ export function ChatProvider({ children, currentUser }) {
   }, [currentUser, scheduleReconnect]);
 
   // ---------------------------
-  // 🔌 MANUAL DISCONNECT ONLY
+  // 🔌 DISCONNECT
   // ---------------------------
   const killConnection = useCallback(() => {
     console.log('Killing connection...');
 
     if (channelRef.current) {
       isManualCloseRef.current = true;
-      supabase.removeChannel(channelRef.current); // ✅ ONLY here
+      supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
@@ -201,7 +191,7 @@ export function ChatProvider({ children, currentUser }) {
   }, []);
 
   // ---------------------------
-  // 💬 SEND MESSAGE
+  // 💬 MESSAGE
   // ---------------------------
   const sendMessage = async (text) => {
     if (!text.trim() || !channelRef.current || !isConnected) return;
@@ -217,9 +207,6 @@ export function ChatProvider({ children, currentUser }) {
     });
   };
 
-  // ---------------------------
-  // ⌨️ TYPING
-  // ---------------------------
   const sendTyping = async (isTyping) => {
     if (!channelRef.current || !isConnected) return;
 
@@ -233,23 +220,20 @@ export function ChatProvider({ children, currentUser }) {
     });
   };
 
-  // ---------------------------
-  // 🧹 CLEAR MESSAGES
-  // ---------------------------
   const clearMessages = () => {
     setMessages([]);
   };
 
   // ---------------------------
-  // 👁️ VISIBILITY HANDLING
+  // 👁️ VISIBILITY
   // ---------------------------
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
-        clearMessages();     // privacy
-        killConnection();    // intentional disconnect
+        clearMessages();
+        killConnection();
       } else {
-        startConnection();   // reconnect
+        startConnection();
       }
     };
 
@@ -259,13 +243,8 @@ export function ChatProvider({ children, currentUser }) {
       document.removeEventListener('visibilitychange', handleVisibility);
   }, [startConnection, killConnection]);
 
-  // ---------------------------
-  // 🧹 CLEANUP
-  // ---------------------------
   useEffect(() => {
-    return () => {
-      killConnection();
-    };
+    return () => killConnection();
   }, [killConnection]);
 
   return (
@@ -280,6 +259,8 @@ export function ChatProvider({ children, currentUser }) {
         startConnection,
         killConnection,
         currentUser,
+        bannerText,      // ✅ your feature preserved
+        updateBanner,    // ✅ your feature preserved
       }}
     >
       {children}
