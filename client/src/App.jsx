@@ -151,16 +151,16 @@ export default function App() {
     // 2. Fire and Forget. Notice there is no 'await' and no state updates on failure.
     // If the browser throws a CORS or network error, it just logs quietly in the background 
     // and keeps the 10-second fake boot sequence running.
-    fetch(`/api/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        message: "🚨 She just opened the AI Assistant! Get online." 
-      })
-    }).catch(error => {
-      // Silently swallow the error. The UI must never know the pager failed.
-      console.error("Silent pager network drop (ignored):", error);
-    });
+    // fetch(`/api/message`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ 
+    //     message: "🚨 She just opened the AI Assistant! Get online." 
+    //   })
+    // }).catch(error => {
+    //   // Silently swallow the error. The UI must never know the pager failed.
+    //   console.error("Silent pager network drop (ignored):", error);
+    // });
   };
 
   return (
