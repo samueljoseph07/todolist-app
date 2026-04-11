@@ -23,7 +23,7 @@ export function ChatProvider({ children, currentUser }) {
 
   const channelRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
-  const isManualCloseRef = useRef(false); // 🔴 key fix
+  const isManualCloseRef = useRef(false);
 
   // ---------------------------
   // 🔁 RECONNECT SCHEDULER
@@ -44,41 +44,30 @@ export function ChatProvider({ children, currentUser }) {
     console.log('Starting connection...');
 
     // Prevent duplicate active connection
-    if (
-      channelRef.current &&
-      channelRef.current.state === 'joined'
-    ) {
-      return;
-    }
+    if (channelRef.current) return;
 
     const channel = supabase.channel('couple_chat', {
       config: {
         broadcast: { self: true },
-        presence: { key: currentUser }, // IMPORTANT: use 'sam' or 'priya'
+        presence: { key: currentUser }, // must be 'sam' or 'priya'
       },
     });
 
     channel
-      // ---------------------------
       // 📩 MESSAGE
-      // ---------------------------
       .on('broadcast', { event: 'message' }, (payload) => {
         setMessages((prev) => [...prev, payload.payload]);
         setIsSheTyping(false);
       })
 
-      // ---------------------------
       // ⌨️ TYPING
-      // ---------------------------
       .on('broadcast', { event: 'typing' }, (payload) => {
         if (payload.payload.sender !== currentUser) {
           setIsSheTyping(payload.payload.isTyping);
         }
       })
 
-      // ---------------------------
       // 👥 PRESENCE
-      // ---------------------------
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const users = Object.keys(state);
@@ -88,9 +77,7 @@ export function ChatProvider({ children, currentUser }) {
         );
       })
 
-      // ---------------------------
-      // 📡 STATUS HANDLER
-      // ---------------------------
+      // 📡 STATUS HANDLER (SAFE)
       .subscribe((status) => {
         console.log('[Realtime status]:', status);
 
@@ -98,6 +85,7 @@ export function ChatProvider({ children, currentUser }) {
           isManualCloseRef.current = false;
           channel.track({ online: true });
           setIsConnected(true);
+          return;
         }
 
         if (
@@ -107,7 +95,7 @@ export function ChatProvider({ children, currentUser }) {
         ) {
           setIsConnected(false);
 
-          // 🔴 Prevent infinite loop
+          // 🔴 Do NOT reconnect if manually closed
           if (isManualCloseRef.current) {
             console.log('Manual disconnect, skip reconnect');
             return;
@@ -115,10 +103,8 @@ export function ChatProvider({ children, currentUser }) {
 
           console.log('Reconnecting triggered');
 
-          if (channelRef.current) {
-            supabase.removeChannel(channelRef.current);
-            channelRef.current = null;
-          }
+          // 🔴 IMPORTANT: just reset reference, DO NOT remove channel here
+          channelRef.current = null;
 
           scheduleReconnect();
         }
@@ -128,14 +114,14 @@ export function ChatProvider({ children, currentUser }) {
   }, [currentUser, scheduleReconnect]);
 
   // ---------------------------
-  // 🔌 MANUAL DISCONNECT
+  // 🔌 MANUAL DISCONNECT ONLY
   // ---------------------------
   const killConnection = useCallback(() => {
     console.log('Killing connection...');
 
     if (channelRef.current) {
       isManualCloseRef.current = true;
-      supabase.removeChannel(channelRef.current);
+      supabase.removeChannel(channelRef.current); // ✅ ONLY here
       channelRef.current = null;
     }
 
@@ -182,7 +168,7 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // 🧹 CLEAR MESSAGES (PRIVACY)
+  // 🧹 CLEAR MESSAGES
   // ---------------------------
   const clearMessages = () => {
     setMessages([]);
@@ -195,7 +181,7 @@ export function ChatProvider({ children, currentUser }) {
     const handleVisibility = () => {
       if (document.hidden) {
         clearMessages();     // privacy
-        killConnection();    // disconnect
+        killConnection();    // intentional disconnect
       } else {
         startConnection();   // reconnect
       }
