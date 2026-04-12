@@ -38,7 +38,7 @@ export function ChatProvider({ children, currentUser }) {
       .from('app_settings')
       .select('banner_text')
       .eq('id', 1)
-      .single();
+      .maybeSingle()
 
     if (data) {
       setBannerText(data.banner_text);
@@ -113,7 +113,7 @@ export function ChatProvider({ children, currentUser }) {
       .from('chat_presence')
       .select('*')
       .eq('user_id', otherUser)
-      .single();
+      .maybeSingle()
 
     if (!data) {
       setIsConnected(false);
