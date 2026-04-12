@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from './ChatProvider';
 
 export default function LiveChat({ onClose, pagerFailed }) {
-  const { messages, isConnected, canSendMessage, sendMessage, clearMessages } = useChat();
+  const { messages, isConnected, canSendMessage, sendMessage, clearMessages, stopPresence } = useChat();
   
   const [inputText, setInputText] = useState('');
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
