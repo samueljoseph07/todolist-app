@@ -179,17 +179,15 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // 💬 SEND MESSAGE (FIXED)
+  // 💬 SEND MESSAGE
   // ---------------------------
   const sendMessage = async (text) => {
     if (!text.trim()) return;
     if (!otherUserStatusRef.current) return;
 
-    const { error } = await supabase
+    await supabase
       .from('messages')
       .insert([{ sender: currentUser, text }]);
-
-    // ❌ NO optimistic update → prevents duplicates
   };
 
   // ---------------------------
@@ -200,37 +198,6 @@ export function ChatProvider({ children, currentUser }) {
     lastSeenRef.current = null;
   };
 
-  // ---------------------------
-  // 👁️ VISIBILITY
-  // ---------------------------
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden) {
-        clearMessages();
-        stopPolling();
-        stopPresence();
-      } else {
-        startPolling();
-        startPresence();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () =>
-      document.removeEventListener('visibilitychange', handleVisibility);
-  }, []);
-
-  useEffect(() => {
-    startPolling();
-    startPresence();
-
-    return () => {
-      stopPolling();
-      stopPresence();
-    };
-  }, []);
-
   return (
     <ChatContext.Provider
       value={{
@@ -239,7 +206,10 @@ export function ChatProvider({ children, currentUser }) {
         canSendMessage,
         sendMessage,
         clearMessages,
-        stopPresence, // ✅ IMPORTANT (used by close button)
+        startPresence,
+        stopPresence,
+        startPolling,
+        stopPolling,
         currentUser,
         bannerText,
         updateBanner,

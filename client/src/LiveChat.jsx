@@ -2,13 +2,34 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from './ChatProvider';
 
 export default function LiveChat({ onClose, pagerFailed }) {
-  const { messages, isConnected, canSendMessage, sendMessage, clearMessages, stopPresence } = useChat();
+  const { 
+    messages, 
+    isConnected, 
+    canSendMessage, 
+    sendMessage, 
+    clearMessages, 
+    stopPresence,
+    startPresence,      // ✅ added
+    startPolling,       // ✅ added
+    stopPolling         // ✅ added
+  } = useChat();
   
   const [inputText, setInputText] = useState('');
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null); 
+
+  // ✅ CRITICAL FIX — START CHAT LIFECYCLE
+  useEffect(() => {
+    startPresence();
+    startPolling();
+
+    return () => {
+      stopPresence();
+      stopPolling();
+    };
+  }, []);
 
   // Auto-scroll to newest message
   useEffect(() => {
@@ -96,6 +117,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
         <button 
           onClick={() => {
             stopPresence();
+            stopPolling(); // ✅ FIX
             clearMessages();
             onClose();
           }}
@@ -105,6 +127,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
         </button>
       </header>
 
+      {/* UI BELOW UNCHANGED */}
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
         <div className="flex-1 min-h-[1rem]"></div>
 
