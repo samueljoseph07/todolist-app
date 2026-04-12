@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from './ChatProvider';
 
 export default function LiveChat({ onClose, pagerFailed }) {
-  const { messages, isConnected, sendMessage, clearMessages, startConnection, killConnection } = useChat();
+  const { messages, isConnected, canSendMessage, sendMessage, clearMessages } = useChat();
   
   const [inputText, setInputText] = useState('');
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
@@ -10,49 +10,41 @@ export default function LiveChat({ onClose, pagerFailed }) {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null); 
 
-  // NEW: Turn on the radio when the chat opens
-  useEffect(() => {
-    startConnection();
-  }, []);
-
   // Auto-scroll to newest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // NEW: The Home Button Kill Switch (Page Visibility API)
+  // Visibility cleanup (keep privacy)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        clearMessages(); // Wipe RAM
-        killConnection(); // SEVER THE NETWORK
+        clearMessages();
       }
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [onClose, clearMessages, killConnection]);
+  }, [clearMessages]);
 
-  // The Trojan Horse Sequence (10-Second Hang)
+  // Trojan Horse Sequence (unchanged)
   useEffect(() => {
-    // If you are connected, or if the Telegram pager already threw a 503 fatal error, do not run this.
     if (isConnected || pagerFailed) return; 
     
     setSystemStatus('Initializing local environment...');
     
     const timer = setTimeout(() => {
-      // Double-check that you haven't connected or failed during that 10-second wait
       if (!isConnected && !pagerFailed) {
         setSystemStatus('Connecting to LLM inference cluster (us-east-1)...');
       }
-    }, 10000); // 10,000 milliseconds = 10 seconds
+    }, 10000);
 
     return () => {
       clearTimeout(timer);
     };
   }, [isConnected, pagerFailed]);
 
-  // NEW: Pager Kill Switch
+  // Pager Kill Switch (unchanged)
   useEffect(() => {
     if (pagerFailed) {
       setSystemStatus('Failed to connect to the server. Please close the chat and open again.');
@@ -61,16 +53,15 @@ export default function LiveChat({ onClose, pagerFailed }) {
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!inputText.trim() || !isConnected) return;
+    if (!inputText.trim() || !canSendMessage) return;
 
     await sendMessage(inputText);
 
     setInputText('');
     
-    // NEW: After sending a message, reset the input box height and keep focus to prevent Android keyboard issues
     if (inputRef.current) {
-      inputRef.current.style.height = '44px'; // Shrink the box back down
-      inputRef.current.focus(); // Keep keyboard open
+      inputRef.current.style.height = '44px';
+      inputRef.current.focus();
     }
   };
 
@@ -80,21 +71,15 @@ export default function LiveChat({ onClose, pagerFailed }) {
     }, 300);
   };
 
-  // NEW: The React-native auto-resize hook
+  // Auto-resize textarea (unchanged)
   useEffect(() => {
     if (!inputRef.current) return;
     
-    // 1. Reset to base height to strip old DOM memory
     inputRef.current.style.height = '44px';
-    
-    // 2. Measure the TRUE height of the newly rendered text
     const scrollHeight = inputRef.current.scrollHeight;
-    
-    // 3. Clamp between 44px and 120px, and apply
     inputRef.current.style.height = `${Math.max(44, Math.min(scrollHeight, 120))}px`;
-  }, [inputText]); // <--- This array tells React to run this every time the text changes
+  }, [inputText]);
 
-  // NEW: DVH used here to handle the Android keyboard resizing the browser
   return (
     <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex flex-col bg-ios-bg font-sans animate-slide-up">
       <header className="flex items-center justify-between px-4 py-3 bg-ios-card border-b border-gray-200 shadow-sm shrink-0">
@@ -110,8 +95,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
 
         <button 
           onClick={() => {
-            clearMessages(); // Wipe RAM
-            killConnection(); // SEVER THE NETWORK
+            clearMessages();
             onClose();
           }}
           className="text-ios-blue font-medium text-[15px] active:opacity-50 transition-opacity"
@@ -121,7 +105,6 @@ export default function LiveChat({ onClose, pagerFailed }) {
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-        {/* NEW: The Spring-Loaded Spacer. This forces messages to anchor to the bottom. */}
         <div className="flex-1 min-h-[1rem]"></div>
 
         {messages.length === 0 ? (
@@ -149,9 +132,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
         <div ref={messagesEndRef} className="shrink-0" />
       </main>
 
-      {/* Input Form */}
       <footer className="bg-ios-card border-t border-gray-200 p-3 pb-safe shrink-0">
-        {/* Changed to items-end so the Send button stays at the bottom when text area grows */}
         <form onSubmit={handleSend} className="flex gap-2 items-end">
           <textarea
             name="chat-message"
@@ -160,22 +141,21 @@ export default function LiveChat({ onClose, pagerFailed }) {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onFocus={handleInputFocus}
-            disabled={!isConnected}
-            placeholder={isConnected ? "Message..." : "Message..."}
+            disabled={!canSendMessage}
+            placeholder={canSendMessage ? "Message..." : "Message..."}
             
-            enterKeyHint="return" // Changes Android keyboard button to a newline arrow
+            enterKeyHint="return"
             autoCapitalize="sentences"
             autoCorrect="on"
             spellCheck="true"
             
             rows={1}
-            // Removed whitespace-nowrap and fully-rounded corners. Added overflow-y-auto for massive messages.
             className="flex-1 bg-ios-bg border border-gray-200 rounded-[20px] px-4 py-2.5 text-[15px] focus:outline-none focus:border-ios-blue transition-all disabled:opacity-50 resize-none overflow-y-auto"
-            style={{ height: '44px' }} // Initial base height
+            style={{ height: '44px' }}
           />
           <button 
             type="submit" 
-            disabled={!inputText.trim() || !isConnected}
+            disabled={!inputText.trim() || !canSendMessage}
             onMouseDown={(e) => e.preventDefault()}
             onTouchStart={(e) => e.preventDefault()}
             className="bg-ios-blue text-white font-medium px-5 py-2.5 rounded-full disabled:opacity-50 active:scale-95 transition-transform h-[44px] shrink-0"

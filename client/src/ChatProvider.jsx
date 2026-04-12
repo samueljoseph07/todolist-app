@@ -4,11 +4,9 @@ import React, {
   useState,
   useRef,
   useEffect,
-  useCallback,
 } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ Singleton client
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -20,18 +18,19 @@ export function ChatProvider({ children, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isSheTyping, setIsSheTyping] = useState(false);
+  const canSendMessage = isConnected;
 
-  const channelRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const isManualCloseRef = useRef(false);
+  const pollingRef = useRef(null);
+  const presenceRef = useRef(null);
+  const lastSeenRef = useRef(null);
+  const otherUserStatusRef = useRef(false);
 
   // ---------------------------
   // 🟢 BANNER SYSTEM (UNCHANGED)
   // ---------------------------
   const [bannerText, setBannerText] = useState(() => {
     const cached = localStorage.getItem('covert_banner');
-    if (cached !== null) return cached;
-    return '';
+    return cached ?? '';
   });
 
   const fetchBanner = async () => {
@@ -68,9 +67,7 @@ export function ChatProvider({ children, currentUser }) {
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(bannerListener);
-    };
+    return () => supabase.removeChannel(bannerListener);
   }, []);
 
   const updateBanner = async (newText) => {
@@ -86,168 +83,133 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // 🔁 RECONNECT
+  // 💬 FETCH MESSAGES
   // ---------------------------
-  const scheduleReconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) return;
+  const fetchMessages = async () => {
+    let query = supabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: true });
 
-    reconnectTimeoutRef.current = setTimeout(() => {
-      reconnectTimeoutRef.current = null;
-      startConnection();
-    }, 1500);
-  }, []);
+    if (lastSeenRef.current) {
+      query = query.gt('created_at', lastSeenRef.current);
+    }
 
-  // ---------------------------
-  // 🚀 START CONNECTION (FIXED)
-  // ---------------------------
-  const startConnection = useCallback(() => {
-  console.log('Starting connection...');
+    const { data } = await query;
 
-  if (channelRef.current) return;
-
-  const channel = supabase.channel('couple_chat', {
-    config: {
-      broadcast: { self: true },
-      presence: { key: currentUser },
-    },
-  });
-
-  // 🔴 Helper: central presence evaluation
-  const evaluatePresence = () => {
-    const state = channel.presenceState();
-    const users = Object.keys(state);
-
-    console.log('Presence check:', state);
-
-    const bothOnline =
-      users.includes('sam') && users.includes('priya');
-
-    setIsConnected(bothOnline);
-    return bothOnline;
+    if (data && data.length > 0) {
+      setMessages((prev) => [...prev, ...data]);
+      lastSeenRef.current = data[data.length - 1].created_at;
+    }
   };
 
-  channel
-    .on('broadcast', { event: 'message' }, (payload) => {
-      setMessages((prev) => [...prev, payload.payload]);
-      setIsSheTyping(false);
-    })
+  // ---------------------------
+  // 👁️ CHECK OTHER USER PRESENCE
+  // ---------------------------
+  const checkOtherUser = async () => {
+    const otherUser = currentUser === 'sam' ? 'priya' : 'sam';
 
-    .on('broadcast', { event: 'typing' }, (payload) => {
-      if (payload.payload.sender !== currentUser) {
-        setIsSheTyping(payload.payload.isTyping);
-      }
-    })
+    const { data } = await supabase
+      .from('chat_presence')
+      .select('*')
+      .eq('user_id', otherUser)
+      .single();
 
-    // ✅ Primary presence listener
-    .on('presence', { event: 'sync' }, () => {
-      console.log('Presence sync event');
-      evaluatePresence();
-    })
+    if (!data) {
+      setIsConnected(false);
+      otherUserStatusRef.current = false;
+      return;
+    }
 
-    .subscribe((status) => {
-      console.log('[Realtime status]:', status);
+    const isOnline =
+      data.is_in_chat &&
+      Date.now() - new Date(data.last_seen).getTime() < 4000;
 
-      if (status === 'SUBSCRIBED') {
-        isManualCloseRef.current = false;
+    setIsConnected(isOnline);
+    otherUserStatusRef.current = isOnline;
+  };
 
-        channel.track({ online: true });
+  // ---------------------------
+  // 🔁 START POLLING
+  // ---------------------------
+  const startPolling = () => {
+    if (pollingRef.current) return;
 
-        // 🔥 Fallback #1: delayed presence check
-        setTimeout(() => {
-          console.log('Fallback presence check (500ms)');
-          evaluatePresence();
-        }, 500);
+    fetchMessages();
+    checkOtherUser();
 
-        // 🔥 Fallback #2: stronger retry if still not connected
-        setTimeout(() => {
-          const connected = evaluatePresence();
+    pollingRef.current = setInterval(() => {
+      fetchMessages();
+      checkOtherUser();
+    }, 1000);
+  };
 
-          if (!connected && !isManualCloseRef.current) {
-            console.log('Presence missing → forcing reconnect');
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
 
-            channelRef.current = null;
-            scheduleReconnect();
-          }
-        }, 2000);
+  // ---------------------------
+  // ❤️ HEARTBEAT (THIS USER)
+  // ---------------------------
+  const startPresence = () => {
+    if (presenceRef.current) return;
 
-        return;
-      }
+    presenceRef.current = setInterval(() => {
+      supabase.from('chat_presence').upsert({
+        user_id: currentUser,
+        is_in_chat: true,
+        last_seen: new Date().toISOString(),
+      });
+    }, 2000);
+  };
 
-      if (
-        status === 'CHANNEL_ERROR' ||
-        status === 'TIMED_OUT' ||
-        status === 'CLOSED'
-      ) {
-        setIsConnected(false);
+  const stopPresence = () => {
+    if (presenceRef.current) {
+      clearInterval(presenceRef.current);
+      presenceRef.current = null;
+    }
 
-        if (isManualCloseRef.current) {
-          console.log('Manual disconnect, skip reconnect');
-          return;
-        }
-
-        console.log('Reconnecting triggered');
-
-        channelRef.current = null;
-        scheduleReconnect();
-      }
+    supabase.from('chat_presence').upsert({
+      user_id: currentUser,
+      is_in_chat: false,
+      last_seen: new Date().toISOString(),
     });
-
-  channelRef.current = channel;
-}, [currentUser, scheduleReconnect]);
+  };
 
   // ---------------------------
-  // 🔌 DISCONNECT
-  // ---------------------------
-  const killConnection = useCallback(() => {
-    console.log('Killing connection...');
-
-    if (channelRef.current) {
-      isManualCloseRef.current = true;
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
-    setIsConnected(false);
-    setIsSheTyping(false);
-
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-  }, []);
-
-  // ---------------------------
-  // 💬 MESSAGE
+  // 💬 SEND MESSAGE (CONTROLLED)
   // ---------------------------
   const sendMessage = async (text) => {
-    if (!text.trim() || !channelRef.current || !isConnected) return;
+    if (!text.trim()) return;
 
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'message',
-      payload: {
-        sender: currentUser,
-        text,
-        timestamp: Date.now(),
-      },
-    });
+    if (!otherUserStatusRef.current) return;
+
+    const message = {
+      sender: currentUser,
+      text,
+    };
+
+    const { error } = await supabase
+      .from('messages')
+      .insert([message]);
+
+    if (!error) {
+      setMessages((prev) => [
+        ...prev,
+        { ...message, created_at: new Date().toISOString() },
+      ]);
+    }
   };
 
-  const sendTyping = async (isTyping) => {
-    if (!channelRef.current || !isConnected) return;
-
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'typing',
-      payload: {
-        sender: currentUser,
-        isTyping,
-      },
-    });
-  };
-
+  // ---------------------------
+  // 🧹 CLEAR
+  // ---------------------------
   const clearMessages = () => {
     setMessages([]);
+    lastSeenRef.current = null;
   };
 
   // ---------------------------
@@ -257,9 +219,11 @@ export function ChatProvider({ children, currentUser }) {
     const handleVisibility = () => {
       if (document.hidden) {
         clearMessages();
-        killConnection();
+        stopPolling();
+        stopPresence();
       } else {
-        startConnection();
+        startPolling();
+        startPresence();
       }
     };
 
@@ -267,26 +231,29 @@ export function ChatProvider({ children, currentUser }) {
 
     return () =>
       document.removeEventListener('visibilitychange', handleVisibility);
-  }, [startConnection, killConnection]);
+  }, []);
 
   useEffect(() => {
-    return () => killConnection();
-  }, [killConnection]);
+    startPolling();
+    startPresence();
+
+    return () => {
+      stopPolling();
+      stopPresence();
+    };
+  }, []);
 
   return (
     <ChatContext.Provider
       value={{
         messages,
-        isConnected,
-        isSheTyping,
+        isConnected, // now real presence
         sendMessage,
-        sendTyping,
         clearMessages,
-        startConnection,
-        killConnection,
+        canSendMessage,
         currentUser,
-        bannerText,      // ✅ your feature preserved
-        updateBanner,    // ✅ your feature preserved
+        bannerText,
+        updateBanner,
       }}
     >
       {children}
