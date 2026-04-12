@@ -17,7 +17,6 @@ const ChatContext = createContext();
 export function ChatProvider({ children, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [isSheTyping, setIsSheTyping] = useState(false);
   const canSendMessage = isConnected;
 
   const pollingRef = useRef(null);
@@ -26,7 +25,7 @@ export function ChatProvider({ children, currentUser }) {
   const otherUserStatusRef = useRef(false);
 
   // ---------------------------
-  // 🟢 BANNER SYSTEM (UNCHANGED)
+  // 🟢 BANNER (UNCHANGED)
   // ---------------------------
   const [bannerText, setBannerText] = useState(() => {
     const cached = localStorage.getItem('covert_banner');
@@ -38,7 +37,7 @@ export function ChatProvider({ children, currentUser }) {
       .from('app_settings')
       .select('banner_text')
       .eq('id', 1)
-      .maybeSingle()
+      .maybeSingle();
 
     if (data) {
       setBannerText(data.banner_text);
@@ -104,7 +103,7 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // 👁️ CHECK OTHER USER PRESENCE
+  // 👁️ CHECK OTHER USER
   // ---------------------------
   const checkOtherUser = async () => {
     const otherUser = currentUser === 'sam' ? 'priya' : 'sam';
@@ -113,7 +112,7 @@ export function ChatProvider({ children, currentUser }) {
       .from('chat_presence')
       .select('*')
       .eq('user_id', otherUser)
-      .maybeSingle()
+      .maybeSingle();
 
     if (!data) {
       setIsConnected(false);
@@ -130,7 +129,7 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // 🔁 START POLLING
+  // 🔁 POLLING
   // ---------------------------
   const startPolling = () => {
     if (pollingRef.current) return;
@@ -152,35 +151,27 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // ❤️ HEARTBEAT (THIS USER)
+  // ❤️ PRESENCE
   // ---------------------------
   const startPresence = () => {
-  if (presenceRef.current) return;
+    if (presenceRef.current) return;
 
-  presenceRef.current = setInterval(async () => {
-    const { error } = await supabase
-      .from('chat_presence')
-      .upsert({
+    presenceRef.current = setInterval(async () => {
+      await supabase.from('chat_presence').upsert({
         user_id: currentUser,
         is_in_chat: true,
         last_seen: new Date().toISOString(),
       });
+    }, 2000);
+  };
 
-    if (error) {
-      console.error("Presence update failed:", error);
-    } else {
-      console.log("Presence updated:", currentUser);
-    }
-  }, 2000);
-};
-
-  const stopPresence = () => {
+  const stopPresence = async () => {
     if (presenceRef.current) {
       clearInterval(presenceRef.current);
       presenceRef.current = null;
     }
 
-    supabase.from('chat_presence').upsert({
+    await supabase.from('chat_presence').upsert({
       user_id: currentUser,
       is_in_chat: false,
       last_seen: new Date().toISOString(),
@@ -188,28 +179,17 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // 💬 SEND MESSAGE (CONTROLLED)
+  // 💬 SEND MESSAGE (FIXED)
   // ---------------------------
   const sendMessage = async (text) => {
     if (!text.trim()) return;
-
     if (!otherUserStatusRef.current) return;
-
-    const message = {
-      sender: currentUser,
-      text,
-    };
 
     const { error } = await supabase
       .from('messages')
-      .insert([message]);
+      .insert([{ sender: currentUser, text }]);
 
-    if (!error) {
-      setMessages((prev) => [
-        ...prev,
-        { ...message, created_at: new Date().toISOString() },
-      ]);
-    }
+    // ❌ NO optimistic update → prevents duplicates
   };
 
   // ---------------------------
@@ -244,7 +224,6 @@ export function ChatProvider({ children, currentUser }) {
   useEffect(() => {
     startPolling();
     startPresence();
-    console.log("Starting presence for:", currentUser);
 
     return () => {
       stopPolling();
@@ -256,10 +235,11 @@ export function ChatProvider({ children, currentUser }) {
     <ChatContext.Provider
       value={{
         messages,
-        isConnected, // now real presence
+        isConnected,
+        canSendMessage,
         sendMessage,
         clearMessages,
-        canSendMessage,
+        stopPresence, // ✅ IMPORTANT (used by close button)
         currentUser,
         bannerText,
         updateBanner,

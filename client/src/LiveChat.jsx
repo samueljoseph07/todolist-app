@@ -95,6 +95,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
 
         <button 
           onClick={() => {
+            stopPresence();
             clearMessages();
             onClose();
           }}
