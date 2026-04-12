@@ -5,6 +5,15 @@ import nodemailer from 'nodemailer';
 import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
+import Pusher from 'pusher';
+
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID,
+  key: process.env.PUSHER_KEY,
+  secret: process.env.PUSHER_SECRET,
+  cluster: process.env.PUSHER_CLUSTER,
+  useTLS: true,
+});
 
 // Initialize Supabase REST Client
 const supabase = createClient(
@@ -15,6 +24,31 @@ const supabase = createClient(
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+// --- PUSHER AUTH ENDPOINT ---
+app.post('/api/pusher/auth', (req, res) => {
+  const socketId = req.body.socket_id;
+  const channel = req.body.channel_name;
+  const userId = req.body.user_id;
+
+  if (!userId) {
+    return res.status(403).send('Forbidden: User ID is required');
+  }
+
+  const presenceData = {
+    user_id: userId,
+    user_info: { name: userId },
+  };
+
+  try {
+    const auth = pusher.authenticate(socketId, channel, presenceData);
+    res.send(auth);
+  } catch (error) {
+    console.error('Pusher auth error:', error);
+    res.status(500).send('Pusher authentication failed');
+  }
+});
 
 // --- CORE TIMEZONE LOGIC ---
 // Calculates the "Logical Date" based on a 5:00 AM IST rollover
@@ -226,6 +260,65 @@ app.get('/api/history', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
+
+// --- REDUNDANT ALERT ROUTE (Telegram -> Email Fallback) ---
+app.post('/api/message', async (req, res) => {
+  const { message } = req.body;
+
+  if (!message || message.trim() === '') {
+    return res.status(400).json({ error: 'Message cannot be empty' });
+  }
+
+  try {
+    // PIPELINE 1: Attempt Telegram
+    const telegramResponse = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: process.env.TELEGRAM_CHAT_ID,
+        text: `${message}`
+      })
+    });
+
+    if (!telegramResponse.ok) {
+      const errorText = await telegramResponse.text();
+      throw new Error(`Telegram rejected request: Status ${telegramResponse.status} - ${errorText}`);
+    }
+
+    // If we make it here, Telegram succeeded.
+    return res.status(200).json({ success: true, routedVia: 'telegram' });
+
+  } catch (telegramError) {
+    // PIPELINE 1 FAILED. 
+    console.error('Telegram failure detected. Triggering Email Fallback:', telegramError.message);
+
+    try {
+      // PIPELINE 2: Attempt Email
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_APP_PASSWORD
+        }
+      });
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: process.env.EMAIL_USER, // Sending it to yourself
+        subject: '🚨 App Support Message (Fallback System)',
+        text: `The Telegram pipeline failed. Message intercepted via email fallback:\n\n${message}`
+      });
+
+      console.log('Email fallback executed successfully.');
+      return res.status(200).json({ success: true, routedVia: 'email_fallback' });
+
+    } catch (emailError) {
+      // TOTAL CATASTROPHIC FAILURE. Both pipelines are dead.
+      console.error('TOTAL PIPELINE FAILURE. Email fallback also failed:', emailError.message);
+      return res.status(500).json({ error: 'Message delivery failed completely.' });
+    }
+  }
+});
 
 // The '0.0.0.0' is the critical fix. It tells Node to accept external connections.
 // app.listen(PORT, '0.0.0.0', () => {

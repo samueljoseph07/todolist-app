@@ -7,8 +7,9 @@ import React, {
   useCallback,
 } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import Pusher from 'pusher-js';
 
-// ✅ Singleton client
+// ✅ Singleton Supabase (for REST calls)
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -21,12 +22,11 @@ export function ChatProvider({ children, currentUser }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isSheTyping, setIsSheTyping] = useState(false);
 
+  const pusherRef = useRef(null);
   const channelRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const isManualCloseRef = useRef(false);
 
   // ---------------------------
-  // 🟢 BANNER SYSTEM (UNCHANGED)
+  // 🟢 BANNER SYSTEM
   // ---------------------------
   const [bannerText, setBannerText] = useState(() => {
     const cached = localStorage.getItem('covert_banner');
@@ -49,31 +49,10 @@ export function ChatProvider({ children, currentUser }) {
 
   useEffect(() => {
     fetchBanner();
-
-    const bannerListener = supabase
-      .channel('banner_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'app_settings',
-          filter: 'id=eq.1',
-        },
-        (payload) => {
-          const newText = payload.new.banner_text;
-          setBannerText(newText);
-          localStorage.setItem('covert_banner', newText);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(bannerListener);
-    };
   }, []);
 
   const updateBanner = async (newText) => {
+    // 1. Update DB
     const { error } = await supabase
       .from('app_settings')
       .update({ banner_text: newText })
@@ -82,138 +61,91 @@ export function ChatProvider({ children, currentUser }) {
     if (!error) {
       setBannerText(newText);
       localStorage.setItem('covert_banner', newText);
+      
+      // 2. Notify others via Pusher (we'll use a public channel for this)
+      if (channelRef.current) {
+        channelRef.current.trigger('client-banner-update', { text: newText });
+      }
     }
   };
 
   // ---------------------------
-  // 🔁 RECONNECT
-  // ---------------------------
-  const scheduleReconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) return;
-
-    reconnectTimeoutRef.current = setTimeout(() => {
-      reconnectTimeoutRef.current = null;
-      startConnection();
-    }, 1500);
-  }, []);
-
-  // ---------------------------
-  // 🚀 START CONNECTION (FIXED)
+  // 🚀 START CONNECTION (PUSHER)
   // ---------------------------
   const startConnection = useCallback(() => {
-  console.log('Starting connection...');
+    if (pusherRef.current) return;
 
-  if (channelRef.current) return;
+    console.log('Starting Pusher connection...');
 
-  const channel = supabase.channel('couple_chat', {
-    config: {
-      broadcast: { self: true },
-      presence: { key: currentUser },
-    },
-  });
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
+      cluster: import.meta.env.VITE_PUSHER_CLUSTER,
+      authEndpoint: '/api/pusher/auth',
+      auth: {
+        params: {
+          user_id: currentUser,
+        },
+      },
+    });
 
-  // 🔴 Helper: central presence evaluation
-  const evaluatePresence = () => {
-    const state = channel.presenceState();
-    const users = Object.keys(state);
+    const channel = pusher.subscribe('presence-chat');
 
-    console.log('Presence check:', state);
+    channel.bind('pusher:subscription_succeeded', (members) => {
+      console.log('Subscribed to presence-chat. Members:', members.count);
+      setIsConnected(members.count === 2);
+    });
 
-    const bothOnline =
-      users.includes('sam') && users.includes('priya');
-
-    setIsConnected(bothOnline);
-    return bothOnline;
-  };
-
-  channel
-    .on('broadcast', { event: 'message' }, (payload) => {
-      setMessages((prev) => [...prev, payload.payload]);
-      setIsSheTyping(false);
-    })
-
-    .on('broadcast', { event: 'typing' }, (payload) => {
-      if (payload.payload.sender !== currentUser) {
-        setIsSheTyping(payload.payload.isTyping);
-      }
-    })
-
-    // ✅ Primary presence listener
-    .on('presence', { event: 'sync' }, () => {
-      console.log('Presence sync event');
-      evaluatePresence();
-    })
-
-    .subscribe((status) => {
-      console.log('[Realtime status]:', status);
-
-      if (status === 'SUBSCRIBED') {
-        isManualCloseRef.current = false;
-
-        channel.track({ online: true });
-
-        // 🔥 Fallback #1: delayed presence check
-        setTimeout(() => {
-          console.log('Fallback presence check (500ms)');
-          evaluatePresence();
-        }, 500);
-
-        // 🔥 Fallback #2: stronger retry if still not connected
-        setTimeout(() => {
-          const connected = evaluatePresence();
-
-          if (!connected && !isManualCloseRef.current) {
-            console.log('Presence missing → forcing reconnect');
-
-            channelRef.current = null;
-            scheduleReconnect();
-          }
-        }, 2000);
-
-        return;
-      }
-
-      if (
-        status === 'CHANNEL_ERROR' ||
-        status === 'TIMED_OUT' ||
-        status === 'CLOSED'
-      ) {
-        setIsConnected(false);
-
-        if (isManualCloseRef.current) {
-          console.log('Manual disconnect, skip reconnect');
-          return;
-        }
-
-        console.log('Reconnecting triggered');
-
-        channelRef.current = null;
-        scheduleReconnect();
+    channel.bind('pusher:member_added', (member) => {
+      console.log('Member joined:', member.id);
+      // If there are 2 people now, we are connected
+      if (channel.members.count === 2) {
+        setIsConnected(true);
       }
     });
 
-  channelRef.current = channel;
-}, [currentUser, scheduleReconnect]);
+    channel.bind('pusher:member_removed', (member) => {
+      console.log('Member left:', member.id);
+      setIsConnected(false);
+      setIsSheTyping(false);
+      // Wipe messages when other person leaves, as requested
+      setMessages([]);
+    });
+
+    channel.bind('client-message', (data) => {
+      setMessages((prev) => [...prev, data]);
+      setIsSheTyping(false);
+    });
+
+    channel.bind('client-typing', (data) => {
+      if (data.sender !== currentUser) {
+        setIsSheTyping(data.isTyping);
+      }
+    });
+
+    channel.bind('client-banner-update', (data) => {
+      setBannerText(data.text);
+      localStorage.setItem('covert_banner', data.text);
+    });
+
+    pusherRef.current = pusher;
+    channelRef.current = channel;
+  }, [currentUser]);
 
   // ---------------------------
   // 🔌 DISCONNECT
   // ---------------------------
   const killConnection = useCallback(() => {
-    console.log('Killing connection...');
+    console.log('Killing Pusher connection...');
 
-    if (channelRef.current) {
-      isManualCloseRef.current = true;
-      supabase.removeChannel(channelRef.current);
+    if (pusherRef.current) {
+      pusherRef.current.unsubscribe('presence-chat');
+      pusherRef.current.disconnect();
+      pusherRef.current = null;
       channelRef.current = null;
     }
 
     setIsConnected(false);
     setIsSheTyping(false);
-
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
+    setMessages([]); // Wipe messages on disconnect
   }, []);
 
   // ---------------------------
@@ -222,27 +154,24 @@ export function ChatProvider({ children, currentUser }) {
   const sendMessage = async (text) => {
     if (!text.trim() || !channelRef.current || !isConnected) return;
 
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'message',
-      payload: {
-        sender: currentUser,
-        text,
-        timestamp: Date.now(),
-      },
-    });
+    const payload = {
+      sender: currentUser,
+      text,
+      timestamp: Date.now(),
+    };
+
+    // Optimistically add own message
+    setMessages((prev) => [...prev, payload]);
+
+    channelRef.current.trigger('client-message', payload);
   };
 
   const sendTyping = async (isTyping) => {
     if (!channelRef.current || !isConnected) return;
 
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'typing',
-      payload: {
-        sender: currentUser,
-        isTyping,
-      },
+    channelRef.current.trigger('client-typing', {
+      sender: currentUser,
+      isTyping,
     });
   };
 
@@ -256,22 +185,27 @@ export function ChatProvider({ children, currentUser }) {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
+        console.log('App hidden, wiping and killing connection');
         clearMessages();
         killConnection();
       } else {
+        console.log('App visible, starting connection');
         startConnection();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
 
-    return () =>
-      document.removeEventListener('visibilitychange', handleVisibility);
-  }, [startConnection, killConnection]);
+    // Initial connection if visible
+    if (!document.hidden) {
+      startConnection();
+    }
 
-  useEffect(() => {
-    return () => killConnection();
-  }, [killConnection]);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      killConnection();
+    };
+  }, [startConnection, killConnection]);
 
   return (
     <ChatContext.Provider
@@ -285,8 +219,8 @@ export function ChatProvider({ children, currentUser }) {
         startConnection,
         killConnection,
         currentUser,
-        bannerText,      // ✅ your feature preserved
-        updateBanner,    // ✅ your feature preserved
+        bannerText,
+        updateBanner,
       }}
     >
       {children}

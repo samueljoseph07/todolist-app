@@ -2,13 +2,39 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from './ChatProvider';
 
 export default function LiveChat({ onClose, pagerFailed }) {
-  const { messages, isConnected, sendMessage, clearMessages, startConnection, killConnection } = useChat();
+  const { 
+    messages, 
+    isConnected, 
+    isSheTyping, 
+    sendMessage, 
+    sendTyping, 
+    clearMessages, 
+    startConnection, 
+    killConnection,
+    currentUser
+  } = useChat();
   
   const [inputText, setInputText] = useState('');
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null); 
+  const typingTimeoutRef = useRef(null);
+
+  // Handle typing state
+  useEffect(() => {
+    if (inputText.trim()) {
+      sendTyping(true);
+      
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTyping(false);
+      }, 2000);
+    } else {
+      sendTyping(false);
+    }
+  }, [inputText, sendTyping]);
 
   // NEW: Turn on the radio when the chat opens
   useEffect(() => {
@@ -132,7 +158,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
           </div>
         ) : (
           messages.map((msg, index) => {
-            const isMe = msg.sender === 'priya'; 
+            const isMe = msg.sender === currentUser; // Changed from hardcoded 'priya' to currentUser
             return (
               <div key={index} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[75%] px-4 py-2.5 text-[15px] leading-relaxed shadow-sm ${
@@ -146,6 +172,20 @@ export default function LiveChat({ onClose, pagerFailed }) {
             );
           })
         )}
+
+        {isSheTyping && (
+          <div className="flex justify-start animate-fade-in">
+            <div className="bg-ios-card text-gray-500 border border-gray-100 px-4 py-2 rounded-2xl text-[13px] flex items-center gap-2">
+              <span className="flex gap-1">
+                <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"></span>
+              </span>
+              AI is typing...
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} className="shrink-0" />
       </main>
 
