@@ -155,16 +155,24 @@ export function ChatProvider({ children, currentUser }) {
   // ❤️ HEARTBEAT (THIS USER)
   // ---------------------------
   const startPresence = () => {
-    if (presenceRef.current) return;
+  if (presenceRef.current) return;
 
-    presenceRef.current = setInterval(() => {
-      supabase.from('chat_presence').upsert({
+  presenceRef.current = setInterval(async () => {
+    const { error } = await supabase
+      .from('chat_presence')
+      .upsert({
         user_id: currentUser,
         is_in_chat: true,
         last_seen: new Date().toISOString(),
       });
-    }, 2000);
-  };
+
+    if (error) {
+      console.error("Presence update failed:", error);
+    } else {
+      console.log("Presence updated:", currentUser);
+    }
+  }, 2000);
+};
 
   const stopPresence = () => {
     if (presenceRef.current) {
@@ -236,6 +244,7 @@ export function ChatProvider({ children, currentUser }) {
   useEffect(() => {
     startPolling();
     startPresence();
+    console.log("Starting presence for:", currentUser);
 
     return () => {
       stopPolling();
