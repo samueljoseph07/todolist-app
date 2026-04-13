@@ -26,6 +26,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
       if (document.hidden) {
         clearMessages(); // Wipe RAM
         killConnection(); // SEVER THE NETWORK
+        onClose()
       }
     };
     
