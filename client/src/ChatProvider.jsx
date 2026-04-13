@@ -134,6 +134,12 @@ export function ChatProvider({ children, currentUser }) {
   const startPolling = () => {
     if (pollingRef.current) return;
 
+    // ✅ RESET STATE ON CHAT START
+    setMessages([]);
+    lastSeenRef.current = null;
+    setIsConnected(false);
+    otherUserStatusRef.current = false;
+
     fetchMessages();
     checkOtherUser();
 
@@ -155,6 +161,13 @@ export function ChatProvider({ children, currentUser }) {
   // ---------------------------
   const startPresence = () => {
     if (presenceRef.current) return;
+
+    // ✅ IMMEDIATE PRESENCE WRITE (IMPORTANT)
+    supabase.from('chat_presence').upsert({
+      user_id: currentUser,
+      is_in_chat: true,
+      last_seen: new Date().toISOString(),
+    });
 
     presenceRef.current = setInterval(async () => {
       await supabase.from('chat_presence').upsert({
