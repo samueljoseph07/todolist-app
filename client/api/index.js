@@ -7,6 +7,18 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import Pusher from 'pusher';
 
+
+
+// Initialize Supabase REST Client
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+);
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
 let pusher;
 
 try {
@@ -50,16 +62,6 @@ app.post('/api/send-message', async (req, res) => {
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
-
-// Initialize Supabase REST Client
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-);
-
-const app = express();
-app.use(cors());
-app.use(express.json());
 
 // --- CORE TIMEZONE LOGIC ---
 // Calculates the "Logical Date" based on a 5:00 AM IST rollover
