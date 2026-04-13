@@ -16,6 +16,8 @@
     "express": "^5.2.1",
     "lucide-react": "^0.577.0",
     "nodemailer": "^8.0.4",
+    "pusher": "^5.3.3",
+    "pusher-js": "^8.5.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

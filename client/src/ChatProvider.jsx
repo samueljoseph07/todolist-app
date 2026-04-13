@@ -1,14 +1,8 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-} from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import Pusher from 'pusher-js';
 
-// ✅ Singleton client
+// ✅ Supabase is still required for your dynamic Banner Database
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -21,12 +15,12 @@ export function ChatProvider({ children, currentUser }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isSheTyping, setIsSheTyping] = useState(false);
 
+  const pusherRef = useRef(null);
   const channelRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
   const isManualCloseRef = useRef(false);
 
   // ---------------------------
-  // 🟢 BANNER SYSTEM (UNCHANGED)
+  // 🟢 BANNER SYSTEM (Kept on Supabase DB)
   // ---------------------------
   const [bannerText, setBannerText] = useState(() => {
     const cached = localStorage.getItem('covert_banner');
@@ -35,12 +29,7 @@ export function ChatProvider({ children, currentUser }) {
   });
 
   const fetchBanner = async () => {
-    const { data } = await supabase
-      .from('app_settings')
-      .select('banner_text')
-      .eq('id', 1)
-      .single();
-
+    const { data } = await supabase.from('app_settings').select('banner_text').eq('id', 1).single();
     if (data) {
       setBannerText(data.banner_text);
       localStorage.setItem('covert_banner', data.banner_text);
@@ -49,36 +38,21 @@ export function ChatProvider({ children, currentUser }) {
 
   useEffect(() => {
     fetchBanner();
-
     const bannerListener = supabase
       .channel('banner_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'app_settings',
-          filter: 'id=eq.1',
-        },
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings', filter: 'id=eq.1' },
         (payload) => {
           const newText = payload.new.banner_text;
           setBannerText(newText);
           localStorage.setItem('covert_banner', newText);
         }
-      )
-      .subscribe();
+      ).subscribe();
 
-    return () => {
-      supabase.removeChannel(bannerListener);
-    };
+    return () => supabase.removeChannel(bannerListener);
   }, []);
 
   const updateBanner = async (newText) => {
-    const { error } = await supabase
-      .from('app_settings')
-      .update({ banner_text: newText })
-      .eq('id', 1);
-
+    const { error } = await supabase.from('app_settings').update({ banner_text: newText }).eq('id', 1);
     if (!error) {
       setBannerText(newText);
       localStorage.setItem('covert_banner', newText);
@@ -86,169 +60,106 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   // ---------------------------
-  // 🔁 RECONNECT
-  // ---------------------------
-  const scheduleReconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) return;
-
-    reconnectTimeoutRef.current = setTimeout(() => {
-      reconnectTimeoutRef.current = null;
-      startConnection();
-    }, 1500);
-  }, []);
-
-  // ---------------------------
-  // 🚀 START CONNECTION (FIXED)
+  // 🚀 START PUSHER CONNECTION
   // ---------------------------
   const startConnection = useCallback(() => {
-  console.log('Starting connection...');
+    console.log('Starting Pusher connection...');
+    if (pusherRef.current) return;
 
-  if (channelRef.current) return;
+    isManualCloseRef.current = false;
 
-  const channel = supabase.channel('couple_chat', {
-    config: {
-      broadcast: { self: true },
-      presence: { key: currentUser },
-    },
-  });
-
-  // 🔴 Helper: central presence evaluation
-  const evaluatePresence = () => {
-    const state = channel.presenceState();
-    const users = Object.keys(state);
-
-    console.log('Presence check:', state);
-
-    const bothOnline =
-      users.includes('sam') && users.includes('priya');
-
-    setIsConnected(bothOnline);
-    return bothOnline;
-  };
-
-  channel
-    .on('broadcast', { event: 'message' }, (payload) => {
-      setMessages((prev) => [...prev, payload.payload]);
-      setIsSheTyping(false);
-    })
-
-    .on('broadcast', { event: 'typing' }, (payload) => {
-      if (payload.payload.sender !== currentUser) {
-        setIsSheTyping(payload.payload.isTyping);
-      }
-    })
-
-    // ✅ Primary presence listener
-    .on('presence', { event: 'sync' }, () => {
-      console.log('Presence sync event');
-      evaluatePresence();
-    })
-
-    .subscribe((status) => {
-      console.log('[Realtime status]:', status);
-
-      if (status === 'SUBSCRIBED') {
-        isManualCloseRef.current = false;
-
-        channel.track({ online: true });
-
-        // 🔥 Fallback #1: delayed presence check
-        setTimeout(() => {
-          console.log('Fallback presence check (500ms)');
-          evaluatePresence();
-        }, 500);
-
-        // 🔥 Fallback #2: stronger retry if still not connected
-        setTimeout(() => {
-          const connected = evaluatePresence();
-
-          if (!connected && !isManualCloseRef.current) {
-            console.log('Presence missing → forcing reconnect');
-
-            channelRef.current = null;
-            scheduleReconnect();
-          }
-        }, 2000);
-
-        return;
-      }
-
-      if (
-        status === 'CHANNEL_ERROR' ||
-        status === 'TIMED_OUT' ||
-        status === 'CLOSED'
-      ) {
-        setIsConnected(false);
-
-        if (isManualCloseRef.current) {
-          console.log('Manual disconnect, skip reconnect');
-          return;
-        }
-
-        console.log('Reconnecting triggered');
-
-        channelRef.current = null;
-        scheduleReconnect();
+    // Initialize Pusher Client
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
+      cluster: import.meta.env.VITE_PUSHER_CLUSTER,
+      // 🚨 REQUIRED BACKEND: You must build this endpoint to sign tokens
+      authEndpoint: '/api/pusher/auth', 
+      auth: {
+        params: { user_id: currentUser }
       }
     });
 
-  channelRef.current = channel;
-}, [currentUser, scheduleReconnect]);
+    pusherRef.current = pusher;
+
+    // Subscribe to a Presence Channel (Requires the auth endpoint)
+    const channel = pusher.subscribe('presence-couple-chat');
+    channelRef.current = channel;
+
+    // Check Presence state
+    const evaluatePresence = () => {
+      const members = channel.members.count;
+      setIsConnected(members > 1);
+    };
+
+    // Pusher System Events
+    channel.bind('pusher:subscription_succeeded', () => {
+      console.log('Pusher Subscribed');
+      evaluatePresence();
+    });
+
+    channel.bind('pusher:member_added', (member) => {
+      console.log('Member joined:', member.id);
+      evaluatePresence();
+    });
+
+    channel.bind('pusher:member_removed', (member) => {
+      console.log('Member left:', member.id);
+      evaluatePresence();
+      if (member.id !== currentUser) setIsSheTyping(false);
+    });
+
+    // Custom Client Events (Requires "Enable client events" in Pusher Dashboard)
+    channel.bind('client-message', (payload) => {
+      setMessages((prev) => [...prev, payload]);
+      setIsSheTyping(false);
+    });
+
+    channel.bind('client-typing', (payload) => {
+      if (payload.sender !== currentUser) {
+        setIsSheTyping(payload.isTyping);
+      }
+    });
+
+  }, [currentUser]);
 
   // ---------------------------
   // 🔌 DISCONNECT
   // ---------------------------
   const killConnection = useCallback(() => {
-    console.log('Killing connection...');
+    console.log('Killing Pusher connection...');
+    isManualCloseRef.current = true;
 
-    if (channelRef.current) {
-      isManualCloseRef.current = true;
-      supabase.removeChannel(channelRef.current);
+    if (pusherRef.current) {
+      pusherRef.current.unsubscribe('presence-couple-chat');
+      pusherRef.current.disconnect();
+      pusherRef.current = null;
       channelRef.current = null;
     }
 
     setIsConnected(false);
     setIsSheTyping(false);
-
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
   }, []);
 
   // ---------------------------
-  // 💬 MESSAGE
+  // 💬 SEND MESSAGES
   // ---------------------------
-  const sendMessage = async (text) => {
+  const sendMessage = (text) => {
     if (!text.trim() || !channelRef.current || !isConnected) return;
 
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'message',
-      payload: {
-        sender: currentUser,
-        text,
-        timestamp: Date.now(),
-      },
-    });
+    const payload = { sender: currentUser, text, timestamp: Date.now() };
+    
+    // Pusher requires client events to be prefixed with 'client-'
+    channelRef.current.trigger('client-message', payload);
+    
+    // Optimistically update our own UI since Pusher client events don't echo to the sender
+    setMessages((prev) => [...prev, payload]);
   };
 
-  const sendTyping = async (isTyping) => {
+  const sendTyping = (isTyping) => {
     if (!channelRef.current || !isConnected) return;
-
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'typing',
-      payload: {
-        sender: currentUser,
-        isTyping,
-      },
-    });
+    channelRef.current.trigger('client-typing', { sender: currentUser, isTyping });
   };
 
-  const clearMessages = () => {
-    setMessages([]);
-  };
+  const clearMessages = () => setMessages([]);
 
   // ---------------------------
   // 👁️ VISIBILITY
@@ -262,11 +173,8 @@ export function ChatProvider({ children, currentUser }) {
         startConnection();
       }
     };
-
     document.addEventListener('visibilitychange', handleVisibility);
-
-    return () =>
-      document.removeEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [startConnection, killConnection]);
 
   useEffect(() => {
@@ -276,17 +184,8 @@ export function ChatProvider({ children, currentUser }) {
   return (
     <ChatContext.Provider
       value={{
-        messages,
-        isConnected,
-        isSheTyping,
-        sendMessage,
-        sendTyping,
-        clearMessages,
-        startConnection,
-        killConnection,
-        currentUser,
-        bannerText,      // ✅ your feature preserved
-        updateBanner,    // ✅ your feature preserved
+        messages, isConnected, isSheTyping, bannerText,
+        sendMessage, sendTyping, clearMessages, startConnection, killConnection, updateBanner,
       }}
     >
       {children}
