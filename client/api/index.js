@@ -5,6 +5,38 @@ import nodemailer from 'nodemailer';
 import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
+import Pusher from 'pusher';
+
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID,
+  key: process.env.PUSHER_KEY,
+  secret: process.env.PUSHER_SECRET,
+  cluster: process.env.PUSHER_CLUSTER,
+  useTLS: true,
+});
+
+app.post('/api/pusher/auth', (req, res) => {
+  const { socket_id, channel_name, user_id } = req.body;
+
+  const auth = pusher.authenticate(socket_id, channel_name, {
+    user_id,
+    user_info: { name: user_id },
+  });
+
+  res.send(auth);
+});
+
+app.post('/api/send-message', async (req, res) => {
+  const { sender, text } = req.body;
+
+  await pusher.trigger('presence-chat', 'message', {
+    sender,
+    text,
+    timestamp: Date.now(),
+  });
+
+  res.json({ success: true });
+}); 
 
 // Initialize Supabase REST Client
 const supabase = createClient(
