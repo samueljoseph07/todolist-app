@@ -164,18 +164,18 @@ export function ChatProvider({ children, currentUser }) {
   // ---------------------------
   // 👁️ VISIBILITY
   // ---------------------------
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden) {
-        clearMessages();
-        killConnection();
-      } else {
-        startConnection();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [startConnection, killConnection]);
+  // useEffect(() => {
+  //   const handleVisibility = () => {
+  //     if (document.hidden) {
+  //       clearMessages();
+  //       killConnection();
+  //     } else {
+  //       startConnection();
+  //     }
+  //   };
+  //   document.addEventListener('visibilitychange', handleVisibility);
+  //   return () => document.removeEventListener('visibilitychange', handleVisibility);
+  // }, [startConnection, killConnection]);
 
   useEffect(() => {
     return () => killConnection();
