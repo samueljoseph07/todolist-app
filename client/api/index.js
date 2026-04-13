@@ -7,13 +7,19 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import Pusher from 'pusher';
 
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID,
-  key: process.env.PUSHER_KEY,
-  secret: process.env.PUSHER_SECRET,
-  cluster: process.env.PUSHER_CLUSTER,
-  useTLS: true,
-});
+let pusher;
+
+try {
+  pusher = new Pusher({
+    appId: process.env.PUSHER_APP_ID,
+    key: process.env.PUSHER_KEY,
+    secret: process.env.PUSHER_SECRET,
+    cluster: process.env.PUSHER_CLUSTER,
+    useTLS: true,
+  });
+} catch (err) {
+  console.error("Pusher init failed:", err);
+}
 
 app.post('/api/pusher/auth', (req, res) => {
   const { socket_id, channel_name, user_id } = req.body;
@@ -27,16 +33,23 @@ app.post('/api/pusher/auth', (req, res) => {
 });
 
 app.post('/api/send-message', async (req, res) => {
-  const { sender, text } = req.body;
+  try {
+    if (!pusher) throw new Error("Pusher not initialized");
 
-  await pusher.trigger('presence-chat', 'message', {
-    sender,
-    text,
-    timestamp: Date.now(),
-  });
+    const { sender, text } = req.body;
 
-  res.json({ success: true });
-}); 
+    await pusher.trigger('presence-chat', 'message', {
+      sender,
+      text,
+      timestamp: Date.now(),
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
 
 // Initialize Supabase REST Client
 const supabase = createClient(
