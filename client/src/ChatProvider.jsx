@@ -20,22 +20,35 @@ export function ChatProvider({ children, currentUser }) {
       },
     });
 
+    // 🔥 DEBUG: connection errors
+    pusher.connection.bind('error', (err) => {
+      console.error('Pusher connection error:', err);
+    });
+
+    pusher.connection.bind('state_change', (states) => {
+      console.log('Pusher state:', states);
+    });
+
     const channel = pusher.subscribe('presence-chat');
 
-    // presence
+    // ✅ subscription success
     channel.bind('pusher:subscription_succeeded', (members) => {
+      console.log('Members:', members);
       setIsConnected(members.count > 1);
     });
 
+    // ✅ someone joined
     channel.bind('pusher:member_added', () => {
       setIsConnected(true);
     });
 
-    channel.bind('pusher:member_removed', (members) => {
-      setIsConnected(members.count > 1);
+    // ✅ someone left (FIXED)
+    channel.bind('pusher:member_removed', () => {
+      // we cannot trust members here → fallback safe logic
+      setIsConnected(false);
     });
 
-    // messages
+    // ✅ messages
     channel.bind('message', (data) => {
       setMessages((prev) => [...prev, data]);
     });
@@ -44,19 +57,27 @@ export function ChatProvider({ children, currentUser }) {
     channelRef.current = channel;
 
     return () => {
-      channel.unbind_all();
-      pusher.unsubscribe('presence-chat');
-      pusher.disconnect();
+      if (channelRef.current) {
+        channelRef.current.unbind_all();
+      }
+      if (pusherRef.current) {
+        pusherRef.current.unsubscribe('presence-chat');
+        pusherRef.current.disconnect();
+      }
     };
-  }, []);
+  }, [currentUser]);
 
   const sendMessage = async (text) => {
     if (!text.trim() || !isConnected) return;
 
-    await axios.post('/api/send-message', {
-      sender: currentUser,
-      text,
-    });
+    try {
+      await axios.post('/api/send-message', {
+        sender: currentUser,
+        text,
+      });
+    } catch (err) {
+      console.error('Send message failed:', err);
+    }
   };
 
   const clearMessages = () => {
