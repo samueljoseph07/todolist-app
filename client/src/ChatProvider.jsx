@@ -37,7 +37,10 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   useEffect(() => {
+    // 1. Initial load
     fetchBanner();
+
+    // 2. Foreground Magic: Supabase Realtime Listener
     const bannerListener = supabase
       .channel('banner_updates')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings', filter: 'id=eq.1' },
@@ -48,7 +51,19 @@ export function ChatProvider({ children, currentUser }) {
         }
       ).subscribe();
 
-    return () => supabase.removeChannel(bannerListener);
+    // 3. Background Fail-safe: Visibility Fetch
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchBanner();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 4. Cleanup both listeners
+    return () => {
+      supabase.removeChannel(bannerListener);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const updateBanner = async (newText) => {
