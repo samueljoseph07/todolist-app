@@ -42,47 +42,47 @@ app.get('/api/health', (req, res) => {
 });
 
 // --- GET TODAY's TASKS (Includes Auto-Generation) ---
-app.get('/api/today', async (req, res) => {
-    try {
-        const logicalDate = getLogicalDate();
+// app.get('/api/today', async (req, res) => {
+//     try {
+//         const logicalDate = getLogicalDate();
         
-        // 1. Trigger the SQL function over HTTP to auto-generate missing logs
-        const { error: rpcError } = await supabase.rpc('generate_daily_logs', { 
-            target_date: logicalDate 
-        });
+//         // 1. Trigger the SQL function over HTTP to auto-generate missing logs
+//         const { error: rpcError } = await supabase.rpc('generate_daily_logs', { 
+//             target_date: logicalDate 
+//         });
         
-        if (rpcError) throw rpcError;
+//         if (rpcError) throw rpcError;
 
-        // 2. Fetch today's generated list using PostgREST inner joins
-        // Notice we removed the broken .order() command from here
-        const { data: todayTasks, error: fetchError } = await supabase
-            .from('daily_logs')
-            .select(`
-                id,
-                is_completed,
-                tasks!inner (id, content, is_active, created_at)
-            `)
-            .eq('logical_date', logicalDate)
-            .eq('tasks.is_active', true);
+//         // 2. Fetch today's generated list using PostgREST inner joins
+//         // Notice we removed the broken .order() command from here
+//         const { data: todayTasks, error: fetchError } = await supabase
+//             .from('daily_logs')
+//             .select(`
+//                 id,
+//                 is_completed,
+//                 tasks!inner (id, content, is_active, created_at)
+//             `)
+//             .eq('logical_date', logicalDate)
+//             .eq('tasks.is_active', true);
 
-        if (fetchError) throw fetchError;
+//         if (fetchError) throw fetchError;
 
-        // 3. THE FIX: Sort it in JavaScript using the original task's creation date, then map it
-        const formattedData = todayTasks
-            .sort((a, b) => new Date(a.tasks.created_at) - new Date(b.tasks.created_at))
-            .map(row => ({
-                log_id: row.id,
-                task_id: row.tasks.id,
-                content: row.tasks.content,
-                is_completed: row.is_completed
-            }));
+//         // 3. THE FIX: Sort it in JavaScript using the original task's creation date, then map it
+//         const formattedData = todayTasks
+//             .sort((a, b) => new Date(a.tasks.created_at) - new Date(b.tasks.created_at))
+//             .map(row => ({
+//                 log_id: row.id,
+//                 task_id: row.tasks.id,
+//                 content: row.tasks.content,
+//                 is_completed: row.is_completed
+//             }));
 
-        res.json(formattedData);
-    } catch (err) {
-        console.error("Fetch tasks error:", err);
-        res.status(500).json({ error: 'Server error fetching tasks' });
-    }
-});
+//         res.json(formattedData);
+//     } catch (err) {
+//         console.error("Fetch tasks error:", err);
+//         res.status(500).json({ error: 'Server error fetching tasks' });
+//     }
+// });
 
 // --- ADD A NEW TASK ---
 app.post('/api/tasks', async (req, res) => {
@@ -186,44 +186,44 @@ app.delete('/api/tasks/:id', async (req, res) => {
 });
 
 // --- GET 30-DAY HISTORY ---
-app.get('/api/history', async (req, res) => {
-    try {
-        const logicalDate = getLogicalDate();
+// app.get('/api/history', async (req, res) => {
+//     try {
+//         const logicalDate = getLogicalDate();
         
-        // 1. Fetch the data (we strip out Supabase's broken nested ordering)
-        const { data: historyData, error: fetchError } = await supabase
-            .from('daily_logs')
-            .select(`
-                logical_date,
-                is_completed,
-                tasks!inner (content, created_at)
-            `)
-            .lte('logical_date', logicalDate);
+//         // 1. Fetch the data (we strip out Supabase's broken nested ordering)
+//         const { data: historyData, error: fetchError } = await supabase
+//             .from('daily_logs')
+//             .select(`
+//                 logical_date,
+//                 is_completed,
+//                 tasks!inner (content, created_at)
+//             `)
+//             .lte('logical_date', logicalDate);
 
-        if (fetchError) throw fetchError;
+//         if (fetchError) throw fetchError;
 
-        // 2. THE FIX: Two-tier JavaScript sorting
-        const formattedHistory = historyData
-            .sort((a, b) => {
-                // Tier 1: Sort by Day (Descending: Newest days first)
-                if (a.logical_date !== b.logical_date) {
-                    return new Date(b.logical_date) - new Date(a.logical_date);
-                }
-                // Tier 2: Sort by Task Creation Time (Ascending: Oldest tasks first)
-                return new Date(a.tasks.created_at) - new Date(b.tasks.created_at);
-            })
-            .map(row => ({
-                logical_date: row.logical_date,
-                content: row.tasks.content,
-                is_completed: row.is_completed
-            }));
+//         // 2. THE FIX: Two-tier JavaScript sorting
+//         const formattedHistory = historyData
+//             .sort((a, b) => {
+//                 // Tier 1: Sort by Day (Descending: Newest days first)
+//                 if (a.logical_date !== b.logical_date) {
+//                     return new Date(b.logical_date) - new Date(a.logical_date);
+//                 }
+//                 // Tier 2: Sort by Task Creation Time (Ascending: Oldest tasks first)
+//                 return new Date(a.tasks.created_at) - new Date(b.tasks.created_at);
+//             })
+//             .map(row => ({
+//                 logical_date: row.logical_date,
+//                 content: row.tasks.content,
+//                 is_completed: row.is_completed
+//             }));
 
-        res.json(formattedHistory);
-    } catch (err) {
-        console.error("History error:", err);
-        res.status(500).json({ error: 'Server error fetching history' });
-    }
-});
+//         res.json(formattedHistory);
+//     } catch (err) {
+//         console.error("History error:", err);
+//         res.status(500).json({ error: 'Server error fetching history' });
+//     }
+// });
 
 const PORT = process.env.PORT || 10000;
 
