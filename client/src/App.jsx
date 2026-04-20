@@ -33,7 +33,7 @@ export default function App() {
   useEffect(() => {
     if (view === 'today') fetchTodayTasks();
     if (view === 'history') fetchHistory();
-  }, [view]);
+  }, [view, currentMonth]); // <--- React will now re-run this when the month changes
 
   const fetchTodayTasks = async () => {
     setLoading(true);
@@ -53,14 +53,16 @@ export default function App() {
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/history`);
+      // 2. Format the month into a strict 'YYYY-MM' string (e.g., '2026-04')
+      const targetMonth = format(currentMonth, 'yyyy-MM');
+      
+      // 3. Pass it to the Vercel backend as a URL Query Parameter
+      const res = await fetch(`${API_BASE}/history?month=${targetMonth}`);
       const data = await res.json();
       
       if (Array.isArray(data)) {
         const grouped = data.reduce((acc, log) => {
-          // THE FIX: Strip the 'T00:00:00.000Z' off the Postgres ISO string
           const cleanDate = log.logical_date.split('T')[0];
-          
           if (!acc[cleanDate]) acc[cleanDate] = [];
           acc[cleanDate].push(log);
           return acc;

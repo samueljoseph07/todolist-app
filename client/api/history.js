@@ -5,15 +5,13 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_KEY
 );
 
-const getLogicalDate = () => {
+// Helper to get current month if she doesn't provide one
+const getCurrentMonthString = () => {
     const now = new Date();
     const istString = now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
     const istDate = new Date(istString);
-    istDate.setHours(istDate.getHours() - 3);
-    const year = istDate.getFullYear();
-    const month = String(istDate.getMonth() + 1).padStart(2, '0');
-    const day = String(istDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    istDate.setHours(istDate.getHours() - 3); // Logical rollover
+    return `${istDate.getFullYear()}-${String(istDate.getMonth() + 1).padStart(2, '0')}`;
 };
 
 export default async function handler(req, res) {
@@ -22,9 +20,20 @@ export default async function handler(req, res) {
     }
 
     try {
-        const logicalDate = getLogicalDate();
+        // 1. Read the month from the URL, or default to current month
+        const targetMonth = req.query.month || getCurrentMonthString();
         
-        // 1. Fetch the data
+        // Split 'YYYY-MM' into variables
+        const [year, month] = targetMonth.split('-');
+
+        // 2. Calculate exact boundaries for the SQL query
+        const startDate = `${year}-${month}-01`;
+        
+        // JavaScript Date trick: Day 0 of the *next* month gives the last day of the *current* month
+        const lastDay = new Date(year, month, 0).getDate();
+        const endDate = `${year}-${month}-${lastDay}`;
+        
+        // 3. Fetch strictly bounded data for just this month
         const { data: historyData, error: fetchError } = await supabase
             .from('daily_logs')
             .select(`
@@ -32,11 +41,12 @@ export default async function handler(req, res) {
                 is_completed,
                 tasks!inner (content, created_at)
             `)
-            .lte('logical_date', logicalDate);
+            .gte('logical_date', startDate) // Lower bound (1st of the month)
+            .lte('logical_date', endDate);  // Upper bound (28th/30th/31st of the month)
 
         if (fetchError) throw fetchError;
 
-        // 2. Format and two-tier sort
+        // 4. Format and sort
         const formattedHistory = historyData
             .sort((a, b) => {
                 if (a.logical_date !== b.logical_date) {
@@ -49,7 +59,7 @@ export default async function handler(req, res) {
                 content: row.tasks.content,
                 is_completed: row.is_completed
             }));
-
+                    
         return res.status(200).json(formattedHistory);
     } catch (err) {
         console.error("History error:", err);
