@@ -22,6 +22,7 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [pagerFailed, setPagerFailed] = useState(false); // NEW STATE
   const [supportError, setSupportError] = useState(null); // NEW STATE
+  const [persistentBanner, setPersistentBanner] = useState('');
 
   // 2. PULL THE TEXT FROM THE PROVIDER
   const { bannerText } = useChat();
@@ -29,6 +30,35 @@ export default function App() {
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
+
+  useEffect(() => {
+    const fetchBanner = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/banner`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.bannerText !== undefined) {
+            setPersistentBanner(data.bannerText);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch banner", err);
+      }
+    };
+
+    // Fetch on initial load
+    fetchBanner();
+
+    // Fetch again every time she switches back to the app
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchBanner();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
     if (view === 'today') fetchTodayTasks();
@@ -211,9 +241,9 @@ export default function App() {
       {/* <small className="px-6 pb-2 italic w-full break-words">Hope you wrote your exam well!</small> */}
 
       {/* INJECT THE DYNAMIC BANNER HERE */}
-      {bannerText && (
+      {(persistentBanner || bannerText) && (
         <small className="px-6 pb-2 italic w-full break-words">
-          {bannerText}
+          {persistentBanner || bannerText}
         </small>
       )}
 
