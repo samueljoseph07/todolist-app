@@ -154,12 +154,29 @@ export default function App() {
   };
 
   const toggleTask = async (logId) => {
-    setTasks(tasks.map(t => t.log_id === logId ? { ...t, is_completed: !t.is_completed } : t));
+    // 1. Determine what the new state SHOULD be
+    const task = tasks.find(t => t.log_id === logId);
+    if (!task) return;
+    const newState = !task.is_completed;
+
+    // 2. Optimistic UI update (Instant visual feedback)
+    setTasks(tasks.map(t => t.log_id === logId ? { ...t, is_completed: newState } : t));
+    
+    // 3. Network Request
     try {
-      await fetch(`${API_BASE}/logs/${logId}/toggle`, { method: 'PATCH' });
+      const res = await fetch(`${API_BASE}/toggle`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_id: logId, is_completed: newState })
+      });
+      
+      // THE FIX: Force an error if Vercel returns a 404 or 500
+      if (!res.ok) throw new Error("Server rejected the toggle request");
+      
     } catch (err) {
-      console.error("Failed to toggle", err);
-      fetchTodayTasks();
+      console.error("Failed to toggle in database:", err);
+      // Revert the UI to the actual database state
+      fetchTodayTasks(); 
     }
   };
 
