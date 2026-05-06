@@ -259,8 +259,8 @@ export default function App() {
 
       {/* INJECT THE DYNAMIC BANNER HERE */}
       {bannerText && (
-        <small className="px-6 pb-2 italic w-full break-words">
-          {bannerText}
+        <small className="px-6 pb-2 italic w-full break-words [&>a]:text-ios-blue [&>a]:underline">
+          dangerouslySetInnerHTML={{ __html: bannerText }}
         </small>
       )}
 
