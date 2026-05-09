@@ -2,7 +2,7 @@ import LiveChat from './LiveChat'; // Adjust path as needed
 import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
-import { MessageCircle, X } from 'lucide-react'; // Added MessageCircle and X
+import { MessageCircle, X, FolderOpen} from 'lucide-react'; // Added MessageCircle and X
 import { useChat } from './ChatProvider'; // 1. IMPORT THIS
 
 // const API_BASE = 'https://todolist-app-backend-ac32.onrender.com/api';
@@ -223,11 +223,22 @@ export default function App() {
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">
           {view === 'today' ? 'Today' : 'History'}
         </h1>
-        {/* The Sneaky AI Button */}
+        
         <div className="flex items-center gap-8">
-        <button 
+          {/* THE NEW PERMANENT NOTES BUTTON */}
+          <a 
+            href="https://drive.google.com/drive/folders/1P9DxA54amU6a_lv7GEA45QYP5Pk0MhUI?usp=sharing" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="p-2 text-blue-400 hover:text-ios-blue transition-colors"
+            aria-label="Study Notes"
+          >
+            <FolderOpen size={24} />
+          </a>
+          {/* The Sneaky AI Button */}
+          <button 
             onClick={triggerPagerAndOpenChat}
-            className="pl-20 text-blue-400 hover:text-ios-blue transition-colors"
+            className="p-2 text-blue-400 hover:text-ios-blue transition-colors"
             aria-label="AI Assistant"
           >
             <svg 
