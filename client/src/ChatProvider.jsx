@@ -11,7 +11,27 @@ const supabase = createClient(
 const ChatContext = createContext();
 
 export function ChatProvider({ children, currentUser }) {
-  const [messages, setMessages] = useState([]);
+  // 1. Conditionally boot from local storage ONLY if you are ai
+  const [messages, setMessages] = useState(() => {
+    if (currentUser === 'ai') {
+      try {
+        const savedMessages = localStorage.getItem('command_center_history');
+        if (savedMessages !== null) {
+          return JSON.parse(savedMessages);
+        }
+      } catch (error) {
+        console.error("Failed to parse local storage", error);
+      }
+    }
+    return []; // Priya always gets a blank slate
+  });
+
+  // 2. Conditionally save to local storage every time a message is sent or received
+  useEffect(() => {
+    if (currentUser === 'ai') {
+      localStorage.setItem('command_center_history', JSON.stringify(messages));
+    }
+  }, [messages, currentUser]);
   const [isConnected, setIsConnected] = useState(false);
   const [isSheTyping, setIsSheTyping] = useState(false);
 
@@ -37,10 +57,7 @@ export function ChatProvider({ children, currentUser }) {
   };
 
   useEffect(() => {
-    // 1. Initial load
     fetchBanner();
-
-    // 2. Foreground Magic: Supabase Realtime Listener
     const bannerListener = supabase
       .channel('banner_updates')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings', filter: 'id=eq.1' },
@@ -51,19 +68,7 @@ export function ChatProvider({ children, currentUser }) {
         }
       ).subscribe();
 
-    // 3. Background Fail-safe: Visibility Fetch
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchBanner();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // 4. Cleanup both listeners
-    return () => {
-      supabase.removeChannel(bannerListener);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    return () => supabase.removeChannel(bannerListener);
   }, []);
 
   const updateBanner = async (newText) => {
@@ -174,7 +179,13 @@ export function ChatProvider({ children, currentUser }) {
     channelRef.current.trigger('client-typing', { sender: currentUser, isTyping });
   };
 
-  const clearMessages = () => setMessages([]);
+  // 3. Update the memory wipe to also clear the hard drive if you are ai
+  const clearMessages = () => {
+    setMessages([]);
+    if (currentUser === 'ai') {
+      localStorage.removeItem('command_center_history');
+    }
+  };
 
   // ---------------------------
   // 👁️ VISIBILITY
