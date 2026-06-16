@@ -1,4 +1,20 @@
 import nodemailer from 'nodemailer';
+import webpush from 'web-push';
+import { createClient } from '@supabase/supabase-js';
+
+// ==========================================
+// SYSTEM INITIALIZATION
+// ==========================================
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+webpush.setVapidDetails(
+  'mailto:samuel.admin@example.com', // Change this to your actual email
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
 export default async function handler(req, res) {
   // Enforce POST requests only
@@ -12,10 +28,37 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Message cannot be empty' });
   }
 
+  let webPushSuccess = false;
+
+  // ==========================================
+  // PIPELINE 1: DIRECT NATIVE PUSH (PRIMARY)
+  // ==========================================
   try {
-    // ==========================================
-    // PIPELINE 1: ATTEMPT TELEGRAM (PRIMARY)
-    // ==========================================
+    const { data, error } = await supabase
+      .from('push_subscriptions')
+      .select('subscription_json')
+      .eq('user_id', 'sam')
+      .single();
+
+    if (error || !data) {
+      console.warn("Web Push Warning: Samuel's device token not found in DB.");
+    } else {
+      const payload = JSON.stringify({
+        title: 'Covert Chat Alert',
+        body: message
+      });
+      await webpush.sendNotification(data.subscription_json, payload);
+      console.log('Web Push executed successfully.');
+      webPushSuccess = true;
+    }
+  } catch (pushError) {
+    console.error('Web Push failure detected:', pushError.message);
+  }
+
+  // ==========================================
+  // PIPELINE 2: ATTEMPT TELEGRAM (PAPER TRAIL)
+  // ==========================================
+  try {
     const telegramResponse = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -30,12 +73,15 @@ export default async function handler(req, res) {
       throw new Error(`Telegram rejected request: Status ${telegramResponse.status} - ${errorText}`);
     }
 
-    // If we make it here, Telegram succeeded.
-    return res.status(200).json({ success: true, routedVia: 'telegram' });
+    // Telegram succeeded
+    return res.status(200).json({ 
+      success: true, 
+      routedVia: webPushSuccess ? 'web_push_and_telegram' : 'telegram_only' 
+    });
 
   } catch (telegramError) {
     // ==========================================
-    // PIPELINE 2: ATTEMPT EMAIL (FALLBACK)
+    // PIPELINE 3: ATTEMPT EMAIL (FALLBACK)
     // ==========================================
     console.error('Telegram failure detected. Triggering Email Fallback:', telegramError.message);
 
@@ -44,7 +90,7 @@ export default async function handler(req, res) {
         service: 'gmail',
         auth: {
           user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_APP_PASSWORD
+          pass: process.env.EMAIL_APP_PASSWORD // Ensure this matches your Vercel env variable name
         }
       });
 
@@ -56,14 +102,27 @@ export default async function handler(req, res) {
       });
 
       console.log('Email fallback executed successfully.');
-      return res.status(200).json({ success: true, routedVia: 'email_fallback' });
+      return res.status(200).json({ 
+        success: true, 
+        routedVia: webPushSuccess ? 'web_push_and_email' : 'email_fallback' 
+      });
 
     } catch (emailError) {
       // ==========================================
-      // PIPELINE 3: TOTAL CATASTROPHIC FAILURE
+      // PIPELINE 4: TOTAL CATASTROPHIC FAILURE
       // ==========================================
-      console.error('TOTAL PIPELINE FAILURE. Email fallback also failed:', emailError.message);
-      return res.status(500).json({ error: 'Message delivery failed completely.' });
+      console.error('TOTAL BACKUP PIPELINE FAILURE. Email fallback also failed:', emailError.message);
+      
+      // If Web Push worked, the notification still technically succeeded
+      if (webPushSuccess) {
+        return res.status(200).json({ 
+          success: true, 
+          routedVia: 'web_push_only', 
+          error: 'Telegram and Email failed' 
+        });
+      }
+
+      return res.status(500).json({ error: 'Message delivery failed completely across all pipelines.' });
     }
   }
 }
