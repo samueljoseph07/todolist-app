@@ -19,9 +19,9 @@ export default async function handler(req, res) {
       method: 'POST',
       body: message,
       headers: {
-        'Title': 'Covert Chat Alert',
+        'Title': 'Alert',
         'Priority': 'high',
-        'Tags': 'rotating_light,warning'
+        'Tags': 'rotating_light'
       }
     });
 
