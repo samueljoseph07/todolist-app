@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from './ChatProvider';
-import { X, Reply } from 'lucide-react'; // NEW IMPORTS
+import { X, Reply, Sun, Moon } from 'lucide-react'; 
 
-// --- THE SWIPE ENGINE COMPONENT ---
-// This handles the touch math for individual message bubbles without polluting the main app
-const SwipeableMessage = ({ msg, isMe, onReply }) => {
+// --- THE SWIPE ENGINE COMPONENT (INSTAGRAM STYLE) ---
+const SwipeableMessage = ({ msg, isMe, onReply, isDarkMode, isTop, isMiddle, isBottom }) => {
   const [translateX, setTranslateX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const startX = useRef(0);
@@ -24,14 +23,12 @@ const SwipeableMessage = ({ msg, isMe, onReply }) => {
     const diffX = currentX - startX.current;
     const diffY = currentY - startY.current;
 
-    // If she is scrolling vertically, cancel the horizontal swipe instantly
     if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 10) {
       setIsSwiping(false);
       setTranslateX(0);
       return;
     }
 
-    // Only allow swipe right, capped at 80px
     if (diffX > 0 && diffX <= 80) {
       setTranslateX(diffX);
     }
@@ -39,23 +36,18 @@ const SwipeableMessage = ({ msg, isMe, onReply }) => {
 
   const handleTouchEnd = () => {
     setIsSwiping(false);
-    // If she swiped past the 50px threshold, trigger the reply
     if (translateX > 50) {
       onReply(msg);
     }
-    // Always snap back to original position
     setTranslateX(0);
   };
 
-  // --- THE DATA HACK: DELIMITER PARSER ---
   let isReply = false;
   let replySender = '';
   let replyText = '';
   let actualText = msg.text;
 
-  // Intercept the hidden pattern and extract the data
   if (msg.text && msg.text.startsWith('$$REPLY$$')) {
-    // Regex extracts: Sender | Replied Text | New Text
     const match = msg.text.match(/\$\$REPLY\$\$\|([^|]+)\|([\s\S]*?)\$\$(.*)/);
     if (match) {
       isReply = true;
@@ -65,9 +57,21 @@ const SwipeableMessage = ({ msg, isMe, onReply }) => {
     }
   }
 
+  // Dynamic Border Radius Logic based on Instagram's grouping
+  let borderRadiusClasses = "rounded-3xl"; 
+  
+  if (isMe) {
+    if (isTop) borderRadiusClasses = "rounded-3xl rounded-br-md";
+    else if (isMiddle) borderRadiusClasses = "rounded-l-3xl rounded-r-md";
+    else if (isBottom) borderRadiusClasses = "rounded-3xl rounded-tr-md";
+  } else {
+    if (isTop) borderRadiusClasses = "rounded-3xl rounded-bl-md";
+    else if (isMiddle) borderRadiusClasses = "rounded-r-3xl rounded-l-md";
+    else if (isBottom) borderRadiusClasses = "rounded-3xl rounded-tl-md";
+  }
+
   return (
-    <div className="relative flex items-center w-full my-1">
-      {/* The Hidden Reply Icon that reveals on swipe */}
+    <div className="relative flex items-center w-full">
       <div 
         className="absolute left-0 flex items-center justify-center h-full transition-opacity duration-200"
         style={{ 
@@ -75,12 +79,11 @@ const SwipeableMessage = ({ msg, isMe, onReply }) => {
           transform: `translateX(${translateX - 40}px)` 
         }}
       >
-        <div className="bg-gray-200 rounded-full p-2 text-gray-600 shadow-inner">
-          <Reply size={16} />
+        <div className="bg-gray-200 dark:bg-neutral-800 rounded-full p-1.5 text-gray-500 shadow-inner">
+          <Reply size={14} />
         </div>
       </div>
 
-      {/* The Draggable Message Bubble */}
       <div 
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -91,26 +94,28 @@ const SwipeableMessage = ({ msg, isMe, onReply }) => {
           transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)' 
         }}
       >
-        <div className={`max-w-[75%] px-3 py-2.5 text-[15px] leading-relaxed shadow-sm flex flex-col gap-1 ${
+        <div className={`max-w-[75%] px-[14px] py-[10px] text-[15px] leading-snug flex flex-col gap-1 ${borderRadiusClasses} ${
           isMe 
-            ? 'bg-ios-blue text-white rounded-l-2xl rounded-tr-2xl rounded-br-sm' 
-            : 'bg-white text-black border border-gray-200 rounded-r-2xl rounded-tl-2xl rounded-bl-sm'
+            ? 'bg-violet-600 text-white'
+            : 'bg-[#EFEFEF] dark:bg-[#262626] text-black dark:text-[#E0E0E0]' 
         }`}>
           
-          {/* THE RENDERED REPLY BLOCK */}
           {isReply && (
-            <div className={`p-2 rounded-lg text-sm mb-1 ${isMe ? 'bg-blue-600/50' : 'bg-gray-100 border-l-2 border-ios-blue'}`}>
-              <div className={`font-semibold text-xs mb-0.5 ${isMe ? 'text-blue-100' : 'text-ios-blue'}`}>
+            <div className={`p-2 rounded-xl text-[13px] mb-1 border-l-2 ${
+              isMe 
+                ? 'bg-black/15 border-white/50 text-white' 
+                : 'bg-black/5 dark:bg-white/10 border-gray-400 dark:border-gray-500 text-black dark:text-white'
+            }`}>
+              <div className="font-semibold opacity-80 mb-0.5">
                 {replySender === 'priya' ? 'You' : 'AI'}
               </div>
-              <div className={`line-clamp-2 overflow-hidden ${isMe ? 'text-blue-50' : 'text-gray-500'}`}>
+              <div className="line-clamp-2 overflow-hidden opacity-90 text-[13px]">
                 {replyText}
               </div>
             </div>
           )}
           
-          {/* THE ACTUAL MESSAGE */}
-          <span>{actualText}</span>
+          <span className="whitespace-pre-wrap break-words">{actualText}</span>
         </div>
       </div>
     </div>
@@ -122,9 +127,46 @@ export default function LiveChat({ onClose, pagerFailed }) {
   
   const [inputText, setInputText] = useState('');
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
-  
-  // NEW STATE: Holds the message object we are currently swiping on
   const [replyTarget, setReplyTarget] = useState(null); 
+
+  // --- THEME PERSISTENCE ---
+  const THEME_PREF_KEY = 'app-theme-preference';
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      const savedPref = localStorage.getItem(THEME_PREF_KEY);
+      if (savedPref !== null) {
+        return JSON.parse(savedPref);
+      }
+    } catch (e) {
+      console.error("Failed to read theme preference:", e);
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  // --- THE OS-LEVEL COLOR HIJACKER ---
+  useEffect(() => {
+    localStorage.setItem(THEME_PREF_KEY, JSON.stringify(isDarkMode));
+
+    let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement('meta');
+      metaThemeColor.setAttribute('name', 'theme-color');
+      document.head.appendChild(metaThemeColor);
+    }
+    metaThemeColor.setAttribute('content', isDarkMode ? '#000000' : '#FFFFFF');
+
+    document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
+
+    const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
+    document.documentElement.style.backgroundColor = bgColor;
+    document.body.style.backgroundColor = bgColor;
+    
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null); 
@@ -171,22 +213,28 @@ export default function LiveChat({ onClose, pagerFailed }) {
     e.preventDefault();
     if (!inputText.trim() || !isConnected) return;
 
-    // --- BUNDLE THE DATA HACK BEFORE SENDING ---
-    // If a reply exists, format it with our secret delimiter string so the receiver can parse it
     let finalPayload = inputText;
     if (replyTarget) {
-      // Format: $$REPLY$$|sender|Original Text$$ Actual Input
       finalPayload = `$$REPLY$$|${replyTarget.sender}|${replyTarget.text}$$ ${inputText}`;
     }
 
     await sendMessage(finalPayload);
 
     setInputText('');
-    setReplyTarget(null); // Clear the reply target after sending
+    setReplyTarget(null); 
     
     if (inputRef.current) {
       inputRef.current.style.height = '44px'; 
       inputRef.current.focus(); 
+    }
+  };
+
+  const handleTextChange = (e) => {
+    setInputText(e.target.value);
+    
+    if (e.target) {
+      e.target.style.height = '44px'; 
+      e.target.style.height = `${Math.max(44, Math.min(e.target.scrollHeight, 120))}px`;
     }
   };
 
@@ -196,16 +244,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
     }, 300);
   };
 
-  useEffect(() => {
-    if (!inputRef.current) return;
-    inputRef.current.style.height = '44px';
-    const scrollHeight = inputRef.current.scrollHeight;
-    inputRef.current.style.height = `${Math.max(44, Math.min(scrollHeight, 120))}px`;
-  }, [inputText]); 
-
-  // Function to trigger when a message is swiped
   const handleReplySwipe = (msg) => {
-    // If it's already a reply message, extract the *actual* text, don't quote the delimiters
     let cleanText = msg.text;
     if (cleanText.startsWith('$$REPLY$$')) {
        const match = cleanText.match(/\$\$REPLY\$\$\|[^|]+\|[\s\S]*?\$\$(.*)/);
@@ -213,108 +252,138 @@ export default function LiveChat({ onClose, pagerFailed }) {
     }
     
     setReplyTarget({ ...msg, text: cleanText });
-    // Auto focus input when replying
     if (inputRef.current) inputRef.current.focus();
   };
 
   return (
-    <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex flex-col bg-ios-bg font-sans animate-slide-up">
-      <header className="flex items-center justify-between px-4 py-3 bg-ios-card border-b border-gray-200 shadow-sm shrink-0">
-        <div className="flex flex-col gap-0.5">
-          <h1 className="text-lg font-semibold text-black leading-tight">AI Chat</h1>
-          <div className="flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full transition-colors ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-            <span className="text-[12px] text-gray-500 font-medium tracking-wide">
-              {isConnected ? 'Active' : 'Inactive'}
-            </span>
-          </div>
-        </div>
-
-        <button 
-          onClick={() => {
-            clearMessages(); 
-            killConnection(); 
-            onClose();
-          }}
-          className="text-ios-blue font-medium text-[15px] active:opacity-50 transition-opacity"
-        >
-          Close
-        </button>
-      </header>
-
-      {/* Added overflow-x-hidden to prevent horizontal scrolling when swiping */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-2 relative">
-        <div className="flex-1 min-h-[1rem]"></div>
-
-        {messages.length === 0 ? (
-          <div className="text-sm text-gray-500 text-center leading-relaxed font-mono px-4 pb-4">
-            {isConnected ? "How can I assist you today?" : systemStatus} 
-          </div>
-        ) : (
-          messages.map((msg, index) => (
-            <SwipeableMessage 
-              key={index} 
-              msg={msg} 
-              isMe={msg.sender === 'priya'} 
-              onReply={handleReplySwipe} 
-            />
-          ))
-        )}
-        <div ref={messagesEndRef} className="shrink-0 h-4" />
-      </main>
-
-      {/* Input Form Wrapper */}
-      <footer className="bg-ios-card border-t border-gray-200 flex flex-col shrink-0 pb-safe">
+    <div className={`fixed top-0 left-0 w-full h-[100dvh] z-50 font-sans animate-slide-up ${isDarkMode ? 'dark' : ''}`}>
+      <div className="flex flex-col w-full h-full bg-white dark:bg-black transition-colors duration-200">
         
-        {/* THE REPLY TARGET UI */}
-        {replyTarget && (
-          <div className="px-4 pt-3 pb-1 flex items-start justify-between bg-gray-50 border-b border-gray-200">
-            <div className="flex-1 border-l-2 border-ios-blue pl-3 overflow-hidden">
-              <span className="text-xs font-bold text-ios-blue block mb-0.5">
-                Replying to {replyTarget.sender === 'priya' ? 'Yourself' : 'AI'}
+        {/* HEADER: Original layout, with toggle added next to close */}
+        <header className="flex items-center justify-between px-4 py-3 bg-white dark:bg-black border-b border-gray-200 dark:border-neutral-900 shadow-sm shrink-0 transition-colors duration-200">
+          <div className="flex flex-col gap-0.5">
+            <h1 className="text-lg font-bold text-black dark:text-white leading-tight">AI Chat</h1>
+            <div className="flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full transition-colors ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+              <span className="text-[12px] text-gray-500 dark:text-gray-400 font-medium tracking-wide">
+                {isConnected ? 'Active' : 'Inactive'}
               </span>
-              <p className="text-sm text-gray-600 line-clamp-1 break-all">
-                {replyTarget.text}
-              </p>
             </div>
+          </div>
+
+          <div className="flex items-center gap-4">
             <button 
-              onClick={() => setReplyTarget(null)}
-              className="p-1 text-gray-400 hover:text-gray-600 rounded-full bg-gray-200 ml-3 shrink-0"
+              onClick={() => setIsDarkMode(!isDarkMode)} 
+              className="p-1.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 rounded-full active:bg-gray-100 dark:active:bg-neutral-800 transition-colors"
+              aria-label="Toggle Theme"
             >
-              <X size={14} />
+              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+
+            <button 
+              onClick={() => {
+                clearMessages(); 
+                killConnection(); 
+                onClose();
+              }}
+              className="text-blue-500 dark:text-blue-400 font-bold text-[15px] active:opacity-50 transition-opacity"
+            >
+              Close
             </button>
           </div>
-        )}
+        </header>
 
-        <form onSubmit={handleSend} className="flex gap-2 items-end p-3">
-          <textarea
-            name="chat-message"
-            inputMode="text"
-            ref={inputRef}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onFocus={handleInputFocus}
-            disabled={!isConnected}
-            placeholder={isConnected ? "Message..." : "Message..."}
-            enterKeyHint="return" 
-            autoCapitalize="sentences"
-            autoCorrect="on"
-            spellCheck="true"
-            rows={1}
-            className="flex-1 bg-ios-bg border border-gray-200 rounded-[20px] px-4 py-2.5 text-[15px] focus:outline-none focus:border-ios-blue transition-all disabled:opacity-50 resize-none overflow-y-auto"
-            style={{ height: '44px' }} 
-          />
-          <button 
-            type="submit" 
-            disabled={!inputText.trim() || !isConnected}
-            onMouseDown={(e) => e.preventDefault()}
-            onTouchStart={(e) => e.preventDefault()}
-            className="bg-ios-blue text-white font-medium px-5 py-2.5 rounded-full disabled:opacity-50 active:scale-95 transition-transform h-[44px] shrink-0"
-          >
-            Send
-          </button>
-        </form>
-      </footer>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col relative">
+          <div className="flex-1 min-h-[1rem]"></div>
+
+          {messages.length === 0 ? (
+            <div className="text-sm text-gray-500 dark:text-gray-400 text-center leading-relaxed font-mono px-4 pb-4 mt-auto">
+              {isConnected ? "How can I assist you today?" : systemStatus} 
+            </div>
+          ) : (
+            messages.map((msg, index) => {
+              const previousMsg = messages[index - 1];
+              const nextMsg = messages[index + 1];
+
+              const isSameAsPrevious = previousMsg && previousMsg.sender === msg.sender;
+              const isSameAsNext = nextMsg && nextMsg.sender === msg.sender;
+
+              const isTop = !isSameAsPrevious && isSameAsNext;
+              const isMiddle = isSameAsPrevious && isSameAsNext;
+              const isBottom = isSameAsPrevious && !isSameAsNext;
+              const isIsolated = !isSameAsPrevious && !isSameAsNext;
+
+              const marginTop = index === 0 ? "mt-0" : (!isSameAsPrevious ? "mt-4" : "mt-[2px]");
+
+              return (
+                <div key={index} className={marginTop}>
+                  <SwipeableMessage 
+                    msg={msg} 
+                    isMe={msg.sender === 'priya'} 
+                    onReply={handleReplySwipe} 
+                    isDarkMode={isDarkMode}
+                    isTop={isTop || isIsolated}
+                    isMiddle={isMiddle}
+                    isBottom={isBottom || isIsolated}
+                  />
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} className="shrink-0 h-4" />
+        </main>
+
+        <footer className="bg-white dark:bg-black flex flex-col shrink-0 pb-safe transition-colors duration-200">
+          
+          {replyTarget && (
+            <div className="px-4 pt-3 pb-2 flex items-start justify-between bg-gray-50 dark:bg-[#121212] border-t border-gray-100 dark:border-neutral-900">
+              <div className="flex-1 border-l-2 border-violet-500 pl-3 overflow-hidden">
+                <span className="text-[13px] font-bold text-violet-600 dark:text-violet-400 block mb-0.5">
+                  Replying to {replyTarget.sender === 'priya' ? 'Yourself' : 'AI'}
+                </span>
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1 break-all">
+                  {replyTarget.text}
+                </p>
+              </div>
+              <button 
+                onClick={() => setReplyTarget(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 ml-3 shrink-0"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleSend} className="flex gap-3 items-end p-3">
+            <textarea
+              name="chat-message"
+              inputMode="text"
+              ref={inputRef}
+              value={inputText}
+              onChange={handleTextChange}
+              onFocus={handleInputFocus}
+              disabled={!isConnected}
+              placeholder={isConnected ? "Message..." : "Message..."}
+              enterKeyHint="return" 
+              autoCapitalize="sentences"
+              autoCorrect="on"
+              spellCheck="true"
+              rows={1}
+              className="flex-1 bg-gray-100 dark:bg-[#262626] text-black dark:text-white rounded-[22px] px-4 py-[10px] text-[15px] leading-relaxed focus:outline-none placeholder-gray-500 dark:placeholder-gray-400 transition-colors disabled:opacity-50 resize-none overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              style={{ height: '44px' }} 
+            />
+            <button 
+              type="submit" 
+              disabled={!inputText.trim() || !isConnected}
+              onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => e.preventDefault()}
+              className="text-violet-600 dark:text-violet-500 font-bold text-[15px] px-3 py-2.5 disabled:opacity-50 active:opacity-70 transition-opacity shrink-0 h-[44px] flex items-center justify-center"
+            >
+              Send
+            </button>
+          </form>
+        </footer>
+      </div>
     </div>
   );
 }
