@@ -8,3 +8,27 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* --- NATIVE APP LOCKDOWN --- */
+html, body {
+  /* Prevent the browser from creating extra space at the bottom */
+  height: 100%;
+  margin: 0;
+  
+  /* Disable the rubber-band bounce effect on iOS/Android */
+  overscroll-behavior-y: none; 
+  overscroll-behavior: none;
+  
+  /* Prevent accidental text selection while swiping */
+  -webkit-user-select: none;
+  user-select: none;
+  
+  /* System font stack */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Re-enable text selection inside the actual chat bubbles and inputs */
+input, textarea, .break-words {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
