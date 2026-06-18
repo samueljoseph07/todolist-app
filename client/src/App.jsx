@@ -506,7 +506,14 @@ export default function App() {
           </div>
         </div>
       )}
-      {isChatOpen && <LiveChat onClose={() => setIsChatOpen(false)} pagerFailed={pagerFailed} />}
+      {isChatOpen && (
+        <LiveChat 
+          onClose={() => setIsChatOpen(false)} 
+          pagerFailed={pagerFailed} 
+          isDarkMode={isDarkMode} 
+          toggleTheme={() => setIsDarkMode(!isDarkMode)} 
+        />
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useChat } from './ChatProvider';
 import { X, Reply, Sun, Moon } from 'lucide-react'; 
 
 // --- THE SWIPE ENGINE COMPONENT (INSTAGRAM STYLE) ---
-const SwipeableMessage = ({ msg, isMe, onReply, isDarkMode, isTop, isMiddle, isBottom }) => {
+const SwipeableMessage = ({ msg, isMe, onReply, isTop, isMiddle, isBottom }) => {
   const [translateX, setTranslateX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const startX = useRef(0);
@@ -57,7 +57,6 @@ const SwipeableMessage = ({ msg, isMe, onReply, isDarkMode, isTop, isMiddle, isB
     }
   }
 
-  // Dynamic Border Radius Logic based on Instagram's grouping
   let borderRadiusClasses = "rounded-3xl"; 
   
   if (isMe) {
@@ -122,52 +121,14 @@ const SwipeableMessage = ({ msg, isMe, onReply, isDarkMode, isTop, isMiddle, isB
   );
 };
 
-export default function LiveChat({ onClose, pagerFailed }) {
+// --- CRITICAL FIX: Destructure the new props passed from App.jsx ---
+export default function LiveChat({ onClose, pagerFailed, isDarkMode, toggleTheme }) {
   const { messages, isConnected, sendMessage, clearMessages, startConnection, killConnection } = useChat();
   
   const [inputText, setInputText] = useState('');
   const [systemStatus, setSystemStatus] = useState('Initializing local environment...');
   const [replyTarget, setReplyTarget] = useState(null); 
 
-  // --- THEME PERSISTENCE ---
-  const THEME_PREF_KEY = 'app-theme-preference';
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    try {
-      const savedPref = localStorage.getItem(THEME_PREF_KEY);
-      if (savedPref !== null) {
-        return JSON.parse(savedPref);
-      }
-    } catch (e) {
-      console.error("Failed to read theme preference:", e);
-    }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-
-  // --- THE OS-LEVEL COLOR HIJACKER ---
-  useEffect(() => {
-    localStorage.setItem(THEME_PREF_KEY, JSON.stringify(isDarkMode));
-
-    let metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (!metaThemeColor) {
-      metaThemeColor = document.createElement('meta');
-      metaThemeColor.setAttribute('name', 'theme-color');
-      document.head.appendChild(metaThemeColor);
-    }
-    metaThemeColor.setAttribute('content', isDarkMode ? '#000000' : '#FFFFFF');
-
-    document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
-
-    const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
-    document.documentElement.style.backgroundColor = bgColor;
-    document.body.style.backgroundColor = bgColor;
-    
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-  
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null); 
 
@@ -259,7 +220,6 @@ export default function LiveChat({ onClose, pagerFailed }) {
     <div className={`fixed top-0 left-0 w-full h-[100dvh] z-50 font-sans animate-slide-up overscroll-none ${isDarkMode ? 'dark' : ''}`}>
       <div className="flex flex-col w-full h-full bg-white dark:bg-black transition-colors duration-200">
         
-        {/* HEADER: Original layout, with toggle added next to close */}
         <header className="flex items-center justify-between px-4 py-3 bg-white dark:bg-black border-b border-gray-200 dark:border-neutral-900 shadow-sm shrink-0 transition-colors duration-200">
           <div className="flex flex-col gap-0.5">
             <h1 className="text-lg font-bold text-black dark:text-white leading-tight">AI Chat</h1>
@@ -272,8 +232,9 @@ export default function LiveChat({ onClose, pagerFailed }) {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* The button now triggers the global function passed from App.jsx */}
             <button 
-              onClick={() => setIsDarkMode(!isDarkMode)} 
+              onClick={toggleTheme} 
               className="p-1.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 rounded-full active:bg-gray-100 dark:active:bg-neutral-800 transition-colors"
               aria-label="Toggle Theme"
             >
@@ -321,7 +282,6 @@ export default function LiveChat({ onClose, pagerFailed }) {
                     msg={msg} 
                     isMe={msg.sender === 'priya'} 
                     onReply={handleReplySwipe} 
-                    // isDarkMode={isDarkMode}
                     isTop={isTop || isIsolated}
                     isMiddle={isMiddle}
                     isBottom={isBottom || isIsolated}
