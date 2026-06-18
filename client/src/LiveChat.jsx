@@ -256,7 +256,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
   };
 
   return (
-    <div className={`fixed top-0 left-0 w-full h-[100dvh] z-50 font-sans animate-slide-up ${isDarkMode ? 'dark' : ''}`}>
+    <div className={`fixed top-0 left-0 w-full h-[100dvh] z-50 font-sans animate-slide-up overscroll-none ${isDarkMode ? 'dark' : ''}`}>
       <div className="flex flex-col w-full h-full bg-white dark:bg-black transition-colors duration-200">
         
         {/* HEADER: Original layout, with toggle added next to close */}
@@ -293,7 +293,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col relative">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col relative overscroll-none">
           <div className="flex-1 min-h-[1rem]"></div>
 
           {messages.length === 0 ? (
