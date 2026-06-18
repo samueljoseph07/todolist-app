@@ -16,8 +16,8 @@ html, body {
   margin: 0;
   
   /* Disable the rubber-band bounce effect on iOS/Android */
-  overscroll-behavior-y: none; 
-  overscroll-behavior: none;
+  /* overscroll-behavior-y: none; 
+  overscroll-behavior: none; */
   
   /* Prevent accidental text selection while swiping */
   -webkit-user-select: none;
