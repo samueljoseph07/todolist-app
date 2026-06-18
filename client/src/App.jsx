@@ -1,13 +1,10 @@
-import LiveChat from './LiveChat'; // Adjust path as needed
+import LiveChat from './LiveChat'; 
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react'; // Added Sun and Moon
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
-import { MessageCircle, X, FolderOpen} from 'lucide-react'; // Added MessageCircle and X
-import { useChat } from './ChatProvider'; // 1. IMPORT THIS
+import { MessageCircle, X, FolderOpen} from 'lucide-react'; 
+import { useChat } from './ChatProvider'; 
 
-// const API_BASE = 'https://todolist-app-backend-ac32.onrender.com/api';
-//local:
-// const API_BASE = 'http://localhost:5000/api';
 const API_BASE = '/api';
 
 export default function App() {
@@ -20,16 +17,53 @@ export default function App() {
   const [supportMessage, setSupportMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [pagerFailed, setPagerFailed] = useState(false); // NEW STATE
-  const [supportError, setSupportError] = useState(null); // NEW STATE
+  const [pagerFailed, setPagerFailed] = useState(false); 
+  const [supportError, setSupportError] = useState(null); 
   const [persistentBanner, setPersistentBanner] = useState('');
 
-  // 2. PULL THE TEXT FROM THE PROVIDER
   const { bannerText } = useChat();
 
-  
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
+
+  // --- THEME PERSISTENCE & OS HIJACKER ---
+  const THEME_PREF_KEY = 'app-theme-preference';
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      const savedPref = localStorage.getItem(THEME_PREF_KEY);
+      if (savedPref !== null) {
+        return JSON.parse(savedPref);
+      }
+    } catch (e) {
+      console.error("Failed to read theme preference:", e);
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(THEME_PREF_KEY, JSON.stringify(isDarkMode));
+
+    let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement('meta');
+      metaThemeColor.setAttribute('name', 'theme-color');
+      document.head.appendChild(metaThemeColor);
+    }
+    // Match her custom light bg (#F2F2F7) or pure black
+    metaThemeColor.setAttribute('content', isDarkMode ? '#000000' : '#F2F2F7');
+
+    document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
+
+    const bgColor = isDarkMode ? '#000000' : '#F2F2F7';
+    document.documentElement.style.backgroundColor = bgColor;
+    document.body.style.backgroundColor = bgColor;
+    
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   useEffect(() => {
     const fetchBanner = async () => {
@@ -46,10 +80,8 @@ export default function App() {
       }
     };
 
-    // Fetch on initial load
     fetchBanner();
 
-    // Fetch again every time she switches back to the app
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         fetchBanner();
@@ -63,7 +95,7 @@ export default function App() {
   useEffect(() => {
     if (view === 'today') fetchTodayTasks();
     if (view === 'history') fetchHistory();
-  }, [view, currentMonth]); // <--- React will now re-run this when the month changes
+  }, [view, currentMonth]); 
 
   const fetchTodayTasks = async () => {
     setLoading(true);
@@ -83,10 +115,7 @@ export default function App() {
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      // 2. Format the month into a strict 'YYYY-MM' string (e.g., '2026-04')
       const targetMonth = format(currentMonth, 'yyyy-MM');
-      
-      // 3. Pass it to the Vercel backend as a URL Query Parameter
       const res = await fetch(`${API_BASE}/history?month=${targetMonth}`);
       const data = await res.json();
       
@@ -128,7 +157,7 @@ export default function App() {
     if (!supportMessage.trim()) return;
 
     setIsSending(true);
-    setSupportError(null); // Clear any previous errors when she tries again
+    setSupportError(null); 
     try {
       const response = await fetch(`/api/message`, {
         method: 'POST',
@@ -140,9 +169,7 @@ export default function App() {
         setSupportMessage('');
         setIsMessageModalOpen(false);
         setSupportError(null);
-        // Optional: Add a temporary "Sent!" toast notification state here if you want
       } else {
-        // If the server rejects it (e.g. 500 error)
         setSupportError("Failed to send message. Please try again.");
       }
     } catch (error) {
@@ -154,15 +181,12 @@ export default function App() {
   };
 
   const toggleTask = async (logId) => {
-    // 1. Determine what the new state SHOULD be
     const task = tasks.find(t => t.log_id === logId);
     if (!task) return;
     const newState = !task.is_completed;
 
-    // 2. Optimistic UI update (Instant visual feedback)
     setTasks(tasks.map(t => t.log_id === logId ? { ...t, is_completed: newState } : t));
     
-    // 3. Network Request
     try {
       const res = await fetch(`${API_BASE}/toggle`, { 
         method: 'POST',
@@ -170,12 +194,10 @@ export default function App() {
         body: JSON.stringify({ log_id: logId, is_completed: newState })
       });
       
-      // THE FIX: Force an error if Vercel returns a 404 or 500
       if (!res.ok) throw new Error("Server rejected the toggle request");
       
     } catch (err) {
       console.error("Failed to toggle in database:", err);
-      // Revert the UI to the actual database state
       fetchTodayTasks(); 
     }
   };
@@ -197,13 +219,9 @@ export default function App() {
   };
 
   const triggerPagerAndOpenChat = () => {
-    // 1. Reset error state and open the UI instantly
     setPagerFailed(false);
     setIsChatOpen(true);
 
-    // 2. Fire and Forget. Notice there is no 'await' and no state updates on failure.
-    // If the browser throws a CORS or network error, it just logs quietly in the background 
-    // and keeps the 10-second fake boot sequence running.
     fetch(`/api/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -211,34 +229,40 @@ export default function App() {
         message: "🚨 She just opened the AI Assistant! Get online." 
       })
     }).catch(error => {
-      // Silently swallow the error. The UI must never know the pager failed.
       console.error("Silent pager network drop (ignored):", error);
     });
   };
 
   return (
-    <div className="flex flex-col min-h-[100dvh] w-full max-w-md mx-auto bg-ios-bg relative shadow-2xl">
+    <div className={`flex flex-col min-h-[100dvh] w-full max-w-md mx-auto bg-ios-bg dark:bg-black relative shadow-2xl transition-colors duration-200 ${isDarkMode ? 'dark' : ''}`}>
       
       <header className="pt-12 pb-6 px-6 flex justify-between items-center z-10">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
           {view === 'today' ? 'Today' : 'History'}
         </h1>
         
-        <div className="flex items-center gap-8">
-          {/* THE NEW PERMANENT NOTES BUTTON */}
+        <div className="flex items-center gap-6">
+          {/* THEME TOGGLE BUTTON */}
+          <button 
+            onClick={() => setIsDarkMode(!isDarkMode)} 
+            className="p-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+            aria-label="Toggle Theme"
+          >
+            {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
+          </button>
+
           <a 
             href="https://drive.google.com/drive/folders/1P9DxA54amU6a_lv7GEA45QYP5Pk0MhUI?usp=sharing" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="p-2 text-blue-400 hover:text-ios-blue transition-colors"
+            className="p-2 text-blue-400 hover:text-ios-blue dark:text-blue-500 dark:hover:text-blue-400 transition-colors"
             aria-label="Study Notes"
           >
             <FolderOpen size={24} />
           </a>
-          {/* The Sneaky AI Button */}
           <button 
             onClick={triggerPagerAndOpenChat}
-            className="p-2 text-blue-400 hover:text-ios-blue transition-colors"
+            className="p-2 text-blue-400 hover:text-ios-blue dark:text-blue-500 dark:hover:text-blue-400 transition-colors"
             aria-label="AI Assistant"
           >
             <svg 
@@ -261,41 +285,38 @@ export default function App() {
           </button>
         <button 
           onClick={() => setIsMessageModalOpen(true)}
-          className="p-2 text-blue-400 hover:text-ios-blue transition-colors">
+          className="p-2 text-blue-400 hover:text-ios-blue dark:text-blue-500 dark:hover:text-blue-400 transition-colors">
           <MessageCircle size={24} />
         </button>
         </div>
       </header>
-      {/* <small className="px-6 pb-2 italic w-full break-words">Hope you wrote your exam well!</small> */}
 
-      {/* INJECT THE DYNAMIC BANNER HERE */}
       {bannerText && (
         <small 
-          className="px-6 pb-2 italic w-full break-words [&>a]:text-ios-blue [&>a]:underline"
+          className="px-6 pb-2 italic w-full break-words text-gray-800 dark:text-gray-300 [&>a]:text-ios-blue [&>a]:dark:text-blue-400 [&>a]:underline"
           dangerouslySetInnerHTML={{ __html: bannerText }}
         />
       )}
 
       <main className="flex-1 px-4 pb-40">
         {loading ? (
-          <div className="flex justify-center py-10 text-ios-gray">Loading...</div>
+          <div className="flex justify-center py-10 text-ios-gray dark:text-gray-400">Loading...</div>
         ) : view === 'today' ? (
           
           <div className="space-y-4">
-
-            <div className="bg-ios-card rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-ios-card dark:bg-[#1C1C1E] rounded-xl shadow-sm overflow-hidden border border-transparent dark:border-neutral-800 transition-colors duration-200">
               {tasks.length === 0 ? (
-                <p className="py-6 text-center text-ios-gray">No tasks active. Add one above.</p>
+                <p className="py-6 text-center text-ios-gray dark:text-gray-400">No tasks active. Add one above.</p>
               ) : (
                 tasks.map((task, index) => (
-                  <div key={task.log_id} className={`flex items-center justify-between p-4 ${index !== tasks.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                  <div key={task.log_id} className={`flex items-center justify-between p-4 ${index !== tasks.length - 1 ? 'border-b border-gray-100 dark:border-neutral-800' : ''}`}>
                     <div className="flex items-center space-x-3 flex-1 cursor-pointer" onClick={() => toggleTask(task.log_id)}>
                       {task.is_completed ? (
-                        <CheckCircle2 size={24} className="text-ios-blue" />
+                        <CheckCircle2 size={24} className="text-ios-blue dark:text-blue-500" />
                       ) : (
-                        <Circle size={24} className="text-ios-gray" />
+                        <Circle size={24} className="text-ios-gray dark:text-gray-500" />
                       )}
-                      <span className={`text-lg ${task.is_completed ? 'text-ios-gray line-through' : 'text-ios-text'}`}>
+                      <span className={`text-lg transition-colors ${task.is_completed ? 'text-ios-gray dark:text-gray-500 line-through' : 'text-ios-text dark:text-gray-100'}`}>
                         {task.content}
                       </span>
                     </div>
@@ -311,21 +332,21 @@ export default function App() {
         ) : (
 
           <div className="space-y-6">
-            <div className="bg-ios-card rounded-xl shadow-sm p-4">
+            <div className="bg-ios-card dark:bg-[#1C1C1E] rounded-xl shadow-sm p-4 border border-transparent dark:border-neutral-800 transition-colors duration-200">
               
               <div className="flex justify-between items-center mb-4">
-                <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-1 text-ios-blue">
+                <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-1 text-ios-blue dark:text-blue-400">
                   <ChevronLeft size={24} />
                 </button>
-                <h2 className="text-lg font-semibold">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {format(currentMonth, 'MMMM yyyy')}
                 </h2>
-                <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1 text-ios-blue">
+                <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1 text-ios-blue dark:text-blue-400">
                   <ChevronRight size={24} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-7 mb-2 text-center text-xs text-ios-gray font-semibold">
+              <div className="grid grid-cols-7 mb-2 text-center text-xs text-ios-gray dark:text-gray-400 font-semibold">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                   <div key={day}>{day}</div>
                 ))}
@@ -355,11 +376,10 @@ export default function App() {
                     <div key={dateStr} className="flex flex-col items-center">
                       <button 
                         onClick={() => dayLogs ? setSelectedHistoryDate(dateStr) : null}
-                        /* THE UI FIX: Changed rounded-full to rounded-2xl */
                         className={`relative w-10 h-10 rounded-2xl overflow-hidden flex items-center justify-center border-2 
-                          ${isSelected ? 'border-ios-blue shadow-md' : 'border-gray-100'} 
+                          ${isSelected ? 'border-ios-blue dark:border-blue-500 shadow-md' : 'border-gray-100 dark:border-neutral-800'} 
                           ${!isCurrentMonth ? 'opacity-30' : ''} 
-                          ${!dayLogs ? 'cursor-default bg-gray-50' : 'cursor-pointer hover:scale-105 transition-transform bg-gray-100'}
+                          ${!dayLogs ? 'cursor-default bg-gray-50 dark:bg-neutral-900' : 'cursor-pointer hover:scale-105 transition-transform bg-gray-100 dark:bg-neutral-800'}
                         `}
                       >
                         {dayLogs && (
@@ -369,7 +389,7 @@ export default function App() {
                           />
                         )}
                         
-                        <span className={`relative z-10 text-sm font-medium ${dayLogs && percent > 50 ? 'text-white' : 'text-ios-text'}`}>
+                        <span className={`relative z-10 text-sm font-medium ${dayLogs && percent > 50 ? 'text-white' : 'text-ios-text dark:text-gray-200'}`}>
                           {format(day, 'd')}
                         </span>
                       </button>
@@ -380,18 +400,18 @@ export default function App() {
             </div>
 
             {selectedHistoryDate && history[selectedHistoryDate] && (
-              <div className="bg-ios-card rounded-xl shadow-sm overflow-hidden animate-fade-in">
-                <h3 className="bg-gray-50 px-4 py-3 text-sm font-semibold text-ios-gray border-b border-gray-100 uppercase tracking-wider">
+              <div className="bg-ios-card dark:bg-[#1C1C1E] rounded-xl shadow-sm overflow-hidden animate-fade-in border border-transparent dark:border-neutral-800 transition-colors duration-200">
+                <h3 className="bg-gray-50 dark:bg-[#121212] px-4 py-3 text-sm font-semibold text-ios-gray dark:text-gray-400 border-b border-gray-100 dark:border-neutral-800 uppercase tracking-wider">
                   {format(parseISO(selectedHistoryDate), 'EEEE, MMMM do')}
                 </h3>
                 {history[selectedHistoryDate].map((log, index) => (
-                  <div key={index} className="flex items-center p-4 border-b border-gray-100 last:border-0">
+                  <div key={index} className="flex items-center p-4 border-b border-gray-100 dark:border-neutral-800 last:border-0">
                     {log.is_completed ? (
-                      <CheckCircle2 size={20} className="text-ios-blue mr-3" />
+                      <CheckCircle2 size={20} className="text-ios-blue dark:text-blue-500 mr-3" />
                     ) : (
-                      <Circle size={20} className="text-ios-gray mr-3" />
+                      <Circle size={20} className="text-ios-gray dark:text-gray-500 mr-3" />
                     )}
-                    <span className={`text-md ${log.is_completed ? 'text-ios-gray line-through' : 'text-ios-text'}`}>
+                    <span className={`text-md transition-colors ${log.is_completed ? 'text-ios-gray dark:text-gray-500 line-through' : 'text-ios-text dark:text-gray-100'}`}>
                       {log.content}
                     </span>
                   </div>
@@ -404,7 +424,7 @@ export default function App() {
 
       {/* FLOATING ADD TASK INPUT */}
       {view === 'today' && (
-        <div className="fixed bottom-[88px] w-full max-w-md left-0 right-0 mx-auto px-4 z-40 bg-ios-bg/90 backdrop-blur-md pt-2 pb-2">
+        <div className="fixed bottom-[88px] w-full max-w-md left-0 right-0 mx-auto px-4 z-40 bg-ios-bg/90 dark:bg-black/90 backdrop-blur-md pt-2 pb-2 transition-colors duration-200">
           <form onSubmit={addTask} className="relative flex items-center drop-shadow-lg">
             <textarea 
               type="text" 
@@ -412,68 +432,65 @@ export default function App() {
               value={newTask}
               onChange={(e) => setNewTask(e.target.value)}
               placeholder="New task..."
-              /* --- THE ANDROID KEYBOARD OVERRIDES --- */
               enterKeyHint="send"
               autoCapitalize="sentences"
               autoCorrect="on"
               spellCheck="true"
-              /* -------------------------------------- */
               rows={1}
-              className="w-full bg-ios-card rounded-xl py-3 pl-4 pr-12 shadow-sm border border-gray-100 focus:outline-none focus:ring-2 focus:ring-ios-blue transition-all"
+              className="w-full bg-ios-card dark:bg-[#1C1C1E] text-black dark:text-white rounded-xl py-3 pl-4 pr-12 shadow-sm border border-gray-100 dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-ios-blue dark:focus:ring-blue-500 transition-colors"
             />
-            <button type="submit" className="absolute right-3 text-ios-blue disabled:opacity-50" disabled={!newTask.trim()}>
+            <button type="submit" className="absolute right-3 text-ios-blue dark:text-blue-400 disabled:opacity-50" disabled={!newTask.trim()}>
               <Plus size={24} />
             </button>
           </form>
         </div>
       )}
 
-      {/* Your existing <nav> goes here */}
-      <nav className="fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 backdrop-blur-md border-t border-gray-200 flex justify-around pb-8 pt-3 px-2 z-50">
+      <nav className="fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 dark:bg-[#1C1C1E]/90 backdrop-blur-md border-t border-gray-200 dark:border-neutral-800 flex justify-around pb-8 pt-3 px-2 z-50 transition-colors duration-200">
         <button 
           onClick={() => { setView('today'); setSelectedHistoryDate(null); }} 
-          className={`flex flex-col items-center space-y-1 w-1/2 ${view === 'today' ? 'text-ios-blue' : 'text-ios-gray'}`}
+          className={`flex flex-col items-center space-y-1 w-1/2 transition-colors ${view === 'today' ? 'text-ios-blue dark:text-blue-400' : 'text-ios-gray dark:text-gray-500'}`}
         >
           <ListTodo size={24} />
           <span className="text-xs font-medium">Today</span>
         </button>
         <button 
           onClick={() => setView('history')} 
-          className={`flex flex-col items-center space-y-1 w-1/2 ${view === 'history' ? 'text-ios-blue' : 'text-ios-gray'}`}
+          className={`flex flex-col items-center space-y-1 w-1/2 transition-colors ${view === 'history' ? 'text-ios-blue dark:text-blue-400' : 'text-ios-gray dark:text-gray-500'}`}
         >
           <CalendarDays size={24} />
           <span className="text-xs font-medium">History</span>
         </button>
       </nav>
+
       {/* MESSAGE MODAL OVERLAY */}
       {isMessageModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-24 px-4 pb-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-ios-card w-full max-w-sm rounded-2xl shadow-2xl p-6 relative animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-24 px-4 pb-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-ios-card dark:bg-[#1C1C1E] w-full max-w-sm rounded-2xl shadow-2xl p-6 relative animate-scale-in duration-200 transition-colors border border-transparent dark:border-neutral-800">
             <button 
               onClick={() => {
                 setIsMessageModalOpen(false);
-                setSupportError(null); // Clear error if she closes the modal
+                setSupportError(null); 
               }}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-800"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
             >
               <X size={20} />
             </button>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900">Message Support</h2>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Message Support</h2>
             <form onSubmit={handleSendMessage}>
               <textarea
                 value={supportMessage}
                 onChange={(e) => {
                   setSupportMessage(e.target.value);
-                  if (supportError) setSupportError(null); // Clear error as soon as she starts typing again
+                  if (supportError) setSupportError(null); 
                 }}
                 placeholder="What's on your mind?"
-                className={`w-full h-32 p-3 bg-ios-bg border ${supportError ? 'border-red-400 focus:ring-red-500' : 'border-gray-200 focus:ring-ios-blue'} rounded-xl mb-4 resize-none focus:outline-none focus:ring-2 text-gray-800`}
+                className={`w-full h-32 p-3 bg-ios-bg dark:bg-black text-gray-800 dark:text-white border ${supportError ? 'border-red-400 dark:border-red-500 focus:ring-red-500' : 'border-gray-200 dark:border-neutral-700 focus:ring-ios-blue dark:focus:ring-blue-500'} rounded-xl mb-4 resize-none focus:outline-none focus:ring-2 transition-colors`}
                 autoFocus
               />
               
-              {/* NEW: The Error Display */}
               {supportError && (
-                <div className="mb-4 text-sm text-red-500 bg-red-50 p-2.5 rounded-lg border border-red-100 flex items-center gap-2">
+                <div className="mb-4 text-sm text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/30 p-2.5 rounded-lg border border-red-100 dark:border-red-800/50 flex items-center gap-2">
                   <span className="font-semibold">⚠️</span> {supportError}
                 </div>
               )}
@@ -481,7 +498,7 @@ export default function App() {
               <button
                 type="submit"
                 disabled={isSending || !supportMessage.trim()}
-                className="w-full bg-ios-blue text-white font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
+                className="w-full bg-ios-blue dark:bg-blue-600 text-white font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
               >
                 {isSending ? 'Sending...' : 'Send'}
               </button>
