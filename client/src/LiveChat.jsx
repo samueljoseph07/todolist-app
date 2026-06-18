@@ -321,7 +321,7 @@ export default function LiveChat({ onClose, pagerFailed }) {
                     msg={msg} 
                     isMe={msg.sender === 'priya'} 
                     onReply={handleReplySwipe} 
-                    isDarkMode={isDarkMode}
+                    // isDarkMode={isDarkMode}
                     isTop={isTop || isIsolated}
                     isMiddle={isMiddle}
                     isBottom={isBottom || isIsolated}
