@@ -1,6 +1,6 @@
 import LiveChat from './LiveChat'; 
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react'; // Added Sun and Moon
+import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react'; 
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
 import { MessageCircle, X, FolderOpen} from 'lucide-react'; 
 import { useChat } from './ChatProvider'; 
@@ -49,7 +49,6 @@ export default function App() {
       metaThemeColor.setAttribute('name', 'theme-color');
       document.head.appendChild(metaThemeColor);
     }
-    // Match her custom light bg (#F2F2F7) or pure black
     metaThemeColor.setAttribute('content', isDarkMode ? '#000000' : '#F2F2F7');
 
     document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
@@ -65,6 +64,15 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  // --- BANNER SYNC ENGINE ---
+  // 1. Live Sync: If the WebSocket pushes a new banner while she is active, update the persistent state.
+  useEffect(() => {
+    if (bannerText !== undefined) {
+      setPersistentBanner(bannerText);
+    }
+  }, [bannerText]);
+
+  // 2. Background Sync: Fetch from DB when the app boots or wakes up from the background.
   useEffect(() => {
     const fetchBanner = async () => {
       try {
@@ -242,7 +250,6 @@ export default function App() {
         </h1>
         
         <div className="flex items-center gap-6">
-          {/* THEME TOGGLE BUTTON */}
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)} 
             className="p-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
@@ -291,10 +298,11 @@ export default function App() {
         </div>
       </header>
 
-      {bannerText && (
+      {/* THE UI FIX: Telling React to physically render the synchronized state */}
+      {persistentBanner && (
         <small 
           className="px-6 pb-2 italic w-full break-words text-gray-800 dark:text-gray-300 [&>a]:text-ios-blue [&>a]:dark:text-blue-400 [&>a]:underline"
-          dangerouslySetInnerHTML={{ __html: bannerText }}
+          dangerouslySetInnerHTML={{ __html: persistentBanner }}
         />
       )}
 
