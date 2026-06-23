@@ -4,8 +4,15 @@ import { CheckCircle2, Circle, Trash2, ListTodo, CalendarDays, Plus, ChevronLeft
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, subMonths, addMonths } from 'date-fns';
 import { MessageCircle, X, FolderOpen} from 'lucide-react'; 
 import { useChat } from './ChatProvider'; 
+import { createClient } from '@supabase/supabase-js'; // CRITICAL: Added Supabase Import
 
 const API_BASE = '/api';
+
+// CRITICAL: Initialize Supabase client directly in App.jsx
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 export default function App() {
   const [view, setView] = useState('today');
@@ -19,9 +26,15 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [pagerFailed, setPagerFailed] = useState(false); 
   const [supportError, setSupportError] = useState(null); 
-  const [persistentBanner, setPersistentBanner] = useState('');
+  
+  // Initialize banner straight from localStorage for instant boot
+  const [persistentBanner, setPersistentBanner] = useState(() => {
+    const cached = localStorage.getItem('covert_banner');
+    return cached !== null ? cached : '';
+  });
 
-  const { bannerText } = useChat();
+  // Removed bannerText from the hook destructing
+  const { messages, isConnected, isSheTyping, sendMessage, sendTyping, clearMessages, startConnection, killConnection } = useChat();
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
@@ -64,53 +77,52 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // --- 1. THE LIVE SOCKET SYNC ---
-  useEffect(() => {
-    if (bannerText !== undefined) {
-      setPersistentBanner(bannerText);
-    }
-  }, [bannerText]);
-
-  // --- 2. THE EXTRACTED CACHE-BUSTING FETCH ENGINE ---
+  // --- THE MASTER BANNER ENGINE ---
   const fetchBanner = async () => {
     try {
-      // CRITICAL FIX: cache: 'no-store' bypasses the aggressive mobile browser cache
-      const res = await fetch(`${API_BASE}/banner`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.bannerText !== undefined) {
-          setPersistentBanner(data.bannerText);
-        }
+      const { data, error } = await supabase.from('app_settings').select('banner_text').eq('id', 1).single();
+      if (data && !error) {
+        setPersistentBanner(data.banner_text);
+        localStorage.setItem('covert_banner', data.banner_text);
       }
     } catch (err) {
-      console.error("Failed to fetch banner", err);
+      console.error("Failed to fetch banner from Supabase", err);
     }
   };
 
-  // --- 3. THE OS-LEVEL WAKE-UP SYNC (Swiping home and back) ---
+  // 1. BOOT, OS WAKE, & WEBSOCKET SYNC
   useEffect(() => {
     fetchBanner();
 
+    // Live Socket
+    const bannerListener = supabase
+      .channel('banner_updates')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings', filter: 'id=eq.1' },
+        (payload) => {
+          const newText = payload.new.banner_text;
+          setPersistentBanner(newText);
+          localStorage.setItem('covert_banner', newText);
+        }
+      ).subscribe();
+
+    // OS Locks
     const handleAppWake = () => {
-      if (!document.hidden) {
-        fetchBanner();
-      }
+      if (!document.hidden) fetchBanner();
     };
 
-    // Reacting to minimizing/maximizing
     document.addEventListener('visibilitychange', handleAppWake);
-    // CRITICAL FIX: Reacting to iOS/Android OS-level app resume
     window.addEventListener('focus', handleAppWake);
 
     return () => {
+      supabase.removeChannel(bannerListener);
       document.removeEventListener('visibilitychange', handleAppWake);
       window.removeEventListener('focus', handleAppWake);
     };
   }, []);
 
-  // --- 4. THE INTERNAL VIEW SYNC (Tapping Today/History) ---
+  // 2. INTERNAL VIEW SYNC
   useEffect(() => {
-    fetchBanner(); // Executes whenever she taps the bottom nav
+    fetchBanner(); 
     
     if (view === 'today') fetchTodayTasks();
     if (view === 'history') fetchHistory();
@@ -464,7 +476,7 @@ export default function App() {
         </div>
       )}
 
-      <nav className="fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 dark:bg-[#1C1C1E]/90 backdrop-blur-md border-t border-gray-200 dark:border-neutral-800 flex justify-around pb-8 pt-3 px-2 z-50 transition-colors duration-200">
+      <nav className="fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 dark:bg-[#1C1C1E]/90 backdrop-blur-md border-t border-gray-200 dark:border-neutral-800 flex justify-around pb-8 pt-1 px-2 z-50 transition-colors duration-200">
         <button 
           onClick={() => { setView('today'); setSelectedHistoryDate(null); }} 
           className={`flex flex-col items-center space-y-1 w-1/2 transition-colors ${view === 'today' ? 'text-ios-blue dark:text-blue-400' : 'text-ios-gray dark:text-gray-500'}`}
