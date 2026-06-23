@@ -64,18 +64,18 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // --- BANNER SYNC ENGINE ---
-  // 1. Live Sync: If the WebSocket pushes a new banner while she is active, update the persistent state.
+  // --- 1. THE LIVE SOCKET SYNC ---
   useEffect(() => {
     if (bannerText !== undefined) {
       setPersistentBanner(bannerText);
     }
   }, [bannerText]);
 
-  // --- EXTRACTED BANNER FETCH FUNCTION ---
+  // --- 2. THE EXTRACTED CACHE-BUSTING FETCH ENGINE ---
   const fetchBanner = async () => {
     try {
-      const res = await fetch(`${API_BASE}/banner`);
+      // CRITICAL FIX: cache: 'no-store' bypasses the aggressive mobile browser cache
+      const res = await fetch(`${API_BASE}/banner`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data.bannerText !== undefined) {
@@ -87,23 +87,30 @@ export default function App() {
     }
   };
 
-  // 2. Background Sync: Fetch from DB when the app boots or wakes up from the background.
+  // --- 3. THE OS-LEVEL WAKE-UP SYNC (Swiping home and back) ---
   useEffect(() => {
     fetchBanner();
 
-    const handleVisibilityChange = () => {
+    const handleAppWake = () => {
       if (!document.hidden) {
         fetchBanner();
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    // Reacting to minimizing/maximizing
+    document.addEventListener('visibilitychange', handleAppWake);
+    // CRITICAL FIX: Reacting to iOS/Android OS-level app resume
+    window.addEventListener('focus', handleAppWake);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleAppWake);
+      window.removeEventListener('focus', handleAppWake);
+    };
   }, []);
 
-  // 3. INTERNAL VIEW SYNC: Fetch whenever she taps "Today" or "History"
+  // --- 4. THE INTERNAL VIEW SYNC (Tapping Today/History) ---
   useEffect(() => {
-    fetchBanner(); // <--- THIS IS WHAT YOU MISSED
+    fetchBanner(); // Executes whenever she taps the bottom nav
     
     if (view === 'today') fetchTodayTasks();
     if (view === 'history') fetchHistory();
@@ -302,7 +309,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* THE UI FIX: Telling React to physically render the synchronized state */}
       {persistentBanner && (
         <small 
           className="px-6 pb-2 italic w-full break-words text-gray-800 dark:text-gray-300 [&>a]:text-ios-blue [&>a]:dark:text-blue-400 [&>a]:underline"
