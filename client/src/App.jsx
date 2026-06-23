@@ -72,22 +72,23 @@ export default function App() {
     }
   }, [bannerText]);
 
+  // --- EXTRACTED BANNER FETCH FUNCTION ---
+  const fetchBanner = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/banner`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.bannerText !== undefined) {
+          setPersistentBanner(data.bannerText);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch banner", err);
+    }
+  };
+
   // 2. Background Sync: Fetch from DB when the app boots or wakes up from the background.
   useEffect(() => {
-    const fetchBanner = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/banner`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.bannerText !== undefined) {
-            setPersistentBanner(data.bannerText);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch banner", err);
-      }
-    };
-
     fetchBanner();
 
     const handleVisibilityChange = () => {
@@ -100,7 +101,10 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
+  // 3. INTERNAL VIEW SYNC: Fetch whenever she taps "Today" or "History"
   useEffect(() => {
+    fetchBanner(); // <--- THIS IS WHAT YOU MISSED
+    
     if (view === 'today') fetchTodayTasks();
     if (view === 'history') fetchHistory();
   }, [view, currentMonth]); 
