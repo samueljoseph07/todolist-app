@@ -454,7 +454,7 @@ export default function App() {
 
       {/* FLOATING ADD TASK INPUT */}
       {view === 'today' && (
-        <div className="fixed bottom-[88px] w-full max-w-md left-0 right-0 mx-auto px-4 z-40 bg-ios-bg/90 dark:bg-black/90 backdrop-blur-md pt-2 pb-2 transition-colors duration-200">
+        <div className="fixed bottom-[82px] w-full max-w-md left-0 right-0 mx-auto px-4 z-40 bg-ios-bg/90 dark:bg-black/90 backdrop-blur-md pt-2 pb-2 transition-colors duration-200">
           <form onSubmit={addTask} className="relative flex items-center drop-shadow-lg">
             <textarea 
               type="text" 
