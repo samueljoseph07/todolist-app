@@ -454,7 +454,7 @@ export default function App() {
 
       {/* FLOATING ADD TASK INPUT */}
       {view === 'today' && (
-        <div className="fixed bottom-[81px] w-full max-w-md left-0 right-0 mx-auto px-4 z-40 bg-ios-bg/90 dark:bg-black/90 backdrop-blur-md pt-2 pb-2 transition-colors duration-200">
+        <div className="fixed bottom-[80px] w-full max-w-md left-0 right-0 mx-auto px-4 z-40 bg-ios-bg/90 dark:bg-black/90 backdrop-blur-md pt-2 pb-2 transition-colors duration-200">
           <form onSubmit={addTask} className="relative flex items-center drop-shadow-lg">
             <textarea 
               type="text" 
@@ -476,7 +476,7 @@ export default function App() {
         </div>
       )}
 
-      <nav className="fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 dark:bg-[#1C1C1E]/90 backdrop-blur-md border-t border-gray-200 dark:border-neutral-800 flex justify-around pb-8 pt-1 px-2 z-50 transition-colors duration-200">
+      <nav className="items-center fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 dark:bg-[#1C1C1E]/90 backdrop-blur-md border-t border-gray-200 dark:border-neutral-800 flex justify-around pt-4 pb-5 px-2 z-50 transition-colors duration-200">
         <button 
           onClick={() => { setView('today'); setSelectedHistoryDate(null); }} 
           className={`flex flex-col items-center space-y-1 w-1/2 transition-colors ${view === 'today' ? 'text-ios-blue dark:text-blue-400' : 'text-ios-gray dark:text-gray-500'}`}
