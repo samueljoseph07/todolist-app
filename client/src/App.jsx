@@ -556,52 +556,39 @@ export default function App() {
 
       {/* --- NEW: THE BANNER LONG-PRESS OVERLAY --- */}
       {bannerMenu.isOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md animate-fade-in px-4">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in px-4">
           <div className="absolute inset-0" onClick={() => setBannerMenu({ isOpen: false, linkHref: null })} />
-          <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl w-full max-w-xs shadow-2xl relative z-10 animate-scale-in flex flex-col overflow-hidden border border-transparent dark:border-neutral-800">
+          <div className="bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-xl rounded-2xl w-full max-w-[280px] shadow-2xl relative z-10 animate-scale-in flex flex-col overflow-hidden border border-transparent dark:border-neutral-800">
             
-            <div className="p-4 border-b border-gray-100 dark:border-neutral-800 text-center">
-              <p className="text-[12px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Banner Options</p>
-            </div>
-
-            <div className="p-5 border-b border-gray-100 dark:border-neutral-800 bg-gray-50 dark:bg-neutral-900/50">
-               <small
-                 className="block italic w-full break-words text-gray-800 dark:text-gray-300 [&>a]:text-ios-blue [&>a]:dark:text-blue-400 [&>a]:underline"
-                 dangerouslySetInnerHTML={{ __html: persistentBanner }}
-               />
-            </div>
-
-            <div className="flex flex-col bg-white dark:bg-[#1C1C1E]">
+            <div className="flex flex-col">
               {bannerMenu.linkHref && (
                 <button 
                   onClick={handleCopyLink} 
-                  className="py-4 text-ios-blue dark:text-blue-400 text-lg font-medium active:bg-gray-100 dark:active:bg-neutral-800 border-b border-gray-100 dark:border-neutral-800 transition-colors"
+                  className="py-3.5 text-ios-blue dark:text-blue-400 text-[16px] font-medium active:bg-gray-200/50 dark:active:bg-neutral-800/50 border-b border-gray-200/60 dark:border-neutral-800/60 transition-colors"
                 >
                   Copy Link
                 </button>
               )}
               <button 
                 onClick={handleCopyBannerText} 
-                className="py-4 text-gray-900 dark:text-white text-lg font-medium active:bg-gray-100 dark:active:bg-neutral-800 border-b border-gray-100 dark:border-neutral-800 transition-colors"
+                className="py-3.5 text-gray-900 dark:text-white text-[16px] font-medium active:bg-gray-200/50 dark:active:bg-neutral-800/50 border-b border-gray-200/60 dark:border-neutral-800/60 transition-colors"
               >
                 Copy Text
               </button>
               <button 
                 onClick={handleDeleteBanner} 
-                className="py-4 text-red-500 text-lg font-bold active:bg-red-50 dark:active:bg-red-900/20 transition-colors"
+                className="py-3.5 text-red-500 text-[16px] font-medium active:bg-red-50/50 dark:active:bg-red-900/20 border-b border-gray-200/60 dark:border-neutral-800/60 transition-colors"
               >
-                Delete Banner
+                Delete
               </button>
             </div>
             
-            <div className="p-2 bg-gray-100 dark:bg-black border-t border-gray-200 dark:border-neutral-900">
-              <button 
-                onClick={() => setBannerMenu({ isOpen: false, linkHref: null })}
-                className="w-full py-3 text-gray-600 dark:text-gray-400 font-semibold rounded-xl active:bg-gray-200 dark:active:bg-neutral-800 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+            <button 
+              onClick={() => setBannerMenu({ isOpen: false, linkHref: null })}
+              className="py-3.5 text-gray-500 dark:text-gray-400 text-[16px] font-semibold active:bg-gray-200/50 dark:active:bg-neutral-800/50 transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
