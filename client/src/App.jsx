@@ -476,7 +476,7 @@ export default function App() {
         </div>
       )}
 
-      <nav className="items-center fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 dark:bg-[#1C1C1E]/90 backdrop-blur-md border-t border-gray-200 dark:border-neutral-800 flex justify-around pt-4 pb-5 px-2 z-50 transition-colors duration-200">
+      <nav className="fixed bottom-0 w-full max-w-md left-0 right-0 mx-auto bg-ios-card/90 dark:bg-[#1C1C1E]/90 backdrop-blur-md border-t border-gray-200 dark:border-neutral-800 flex justify-around pt-4 pb-5 px-2 z-50 transition-colors duration-200">
         <button 
           onClick={() => { setView('today'); setSelectedHistoryDate(null); }} 
           className={`flex flex-col items-center space-y-1 w-1/2 transition-colors ${view === 'today' ? 'text-ios-blue dark:text-blue-400' : 'text-ios-gray dark:text-gray-500'}`}
